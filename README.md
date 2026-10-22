@@ -94,7 +94,7 @@ The `fire_scenarios` section of the assumptions file sets which years the burn r
 
 2024 sits apart because it burned 458,000 ha of cane, more than 2015 to 2023 combined. At R$700/ha with alert treatment, 3 cane farms clear the ROI hurdle in a normal year, 2,663 in a severe year and 268 over the long run. At this price the product pays for itself in bad years, which points the NoFire team towards pricing it like insurance.
 
-INPE hotspots stay in as a cross-check. They rank municipalities much as MapBiomas does, with rank correlations of 0.65 for normal years and 0.57 for 2024.
+INPE hotspots stay in as a cross-check. They rank municipalities much as MapBiomas does, with rank correlations of 0.66 for normal years and 0.58 for 2024.
 
 ### Why the hotspot formula was dropped
 
