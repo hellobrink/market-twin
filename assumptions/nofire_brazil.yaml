@@ -1,0 +1,212 @@
+# Per-farm ROI assumptions for NoFire preventive fire treatment in Brazil.
+#
+# Every input is a range (low, base, high). The base case uses `base`;
+# Monte Carlo runs sample a triangular distribution over the range.
+#
+# status tells you where a number came from:
+#   placeholder  Brink's guess. Replace with NoFire interview data or a public source.
+#   pilot        From the Stop the Spread pilot page (frontiertechhub.org).
+#   interview    From NoFire's farmer or operator interviews.
+#   public       From a public dataset (IBGE, INPE, CONAB...). Cite it in `note`.
+#
+# Money is in Brazilian reais (BRL). Areas are hectares. Water is cubic metres.
+
+currency: BRL
+
+product:
+  containment_rate:
+    low: 0.40
+    base: 0.65
+    high: 0.85
+    status: pilot
+    note: Share of fire spread stopped by a treated strip. The pilot reported up to 85% at 1:1 dilution, so 0.85 is the top of the range.
+  water_saving_share:
+    low: 0.40
+    base: 0.55
+    high: 0.63
+    status: pilot
+    note: Water saved compared with water-only methods. The pilot reported up to 63%.
+  product_cost_per_ha:
+    low: 300
+    base: 700
+    high: 1500
+    status: placeholder
+    note: Price of retardant per treated hectare per application at 1:1 dilution. No pricing has been published.
+
+delivery:
+  ground:
+    application_cost_per_ha:
+      low: 40
+      base: 80
+      high: 150
+      status: placeholder
+      note: Labour and fuel to apply with the farm's own truck or sprayers.
+    water_cost_per_m3:
+      low: 5
+      base: 10
+      high: 20
+      status: placeholder
+      note: Cost of water already on or near the farm.
+  drone:
+    application_cost_per_ha:
+      low: 100
+      base: 180
+      high: 300
+      status: placeholder
+      note: Rate charged by a contracted spraying-drone service.
+    water_cost_per_m3:
+      low: 20
+      base: 50
+      high: 120
+      status: placeholder
+      note: Cost of trucking water to a remote site, where water logistics are the bottleneck.
+
+buyer:
+  roi_hurdle:
+    low: 0.3
+    base: 0.5
+    high: 1.0
+    status: placeholder
+    note: Return a farmer needs before moving money from a reactive to a preventive budget. 0.5 means R$1.50 back for every R$1 spent.
+
+segments:
+  sugarcane_ground:
+    label: Mid-size sugarcane farm with its own water truck
+    delivery: ground
+    farm_area_ha:
+      low: 300
+      base: 600
+      high: 1200
+      status: placeholder
+      note: Replace with the IBGE Censo Agropecuario size distribution for the chosen state.
+    treated_share:
+      low: 0.02
+      base: 0.04
+      high: 0.08
+      status: placeholder
+      note: Share of the farm treated, as strips along roads and boundaries.
+    annual_fire_probability:
+      low: 0.05
+      base: 0.12
+      high: 0.25
+      status: placeholder
+      note: Chance a fire reaches the farm in a season. Replace with INPE hotspot history by municipality.
+    burned_area_if_fire_share:
+      low: 0.05
+      base: 0.15
+      high: 0.35
+      status: placeholder
+      note: Share of the farm that burns when a fire arrives and nothing is treated.
+    value_at_risk_per_ha:
+      low: 4000
+      base: 8000
+      high: 14000
+      status: placeholder
+      note: Crop loss plus replanting per burned hectare. Replace with CONAB prices and yields.
+    applications_per_season:
+      low: 3
+      base: 6
+      high: 12
+      status: placeholder
+      note: Treatments per dry season. The gel lasts about 24 hours, so farms treat on high-risk days.
+    timing_coverage:
+      low: 0.3
+      base: 0.5
+      high: 0.8
+      status: placeholder
+      note: Share of fires that arrive while a treatment is still active.
+    baseline_water_m3_per_ha:
+      low: 0
+      base: 5
+      high: 15
+      status: placeholder
+      note: Water the farm already spends per treated hectare per season on fire prevention. Zero means no water saving to claim.
+
+  smallholder_drone:
+    label: Small mixed farm with no water truck, using a drone service
+    delivery: drone
+    farm_area_ha:
+      low: 20
+      base: 50
+      high: 120
+      status: placeholder
+    treated_share:
+      low: 0.03
+      base: 0.06
+      high: 0.10
+      status: placeholder
+    annual_fire_probability:
+      low: 0.05
+      base: 0.10
+      high: 0.20
+      status: placeholder
+    burned_area_if_fire_share:
+      low: 0.10
+      base: 0.25
+      high: 0.50
+      status: placeholder
+    value_at_risk_per_ha:
+      low: 1500
+      base: 3500
+      high: 7000
+      status: placeholder
+    applications_per_season:
+      low: 2
+      base: 4
+      high: 8
+      status: placeholder
+    timing_coverage:
+      low: 0.3
+      base: 0.5
+      high: 0.8
+      status: placeholder
+    baseline_water_m3_per_ha:
+      low: 0
+      base: 2
+      high: 8
+      status: placeholder
+
+  remote_ranch_drone:
+    label: Remote cattle ranch using a drone service
+    delivery: drone
+    farm_area_ha:
+      low: 1000
+      base: 3000
+      high: 8000
+      status: placeholder
+    treated_share:
+      low: 0.005
+      base: 0.01
+      high: 0.03
+      status: placeholder
+    annual_fire_probability:
+      low: 0.10
+      base: 0.20
+      high: 0.35
+      status: placeholder
+    burned_area_if_fire_share:
+      low: 0.05
+      base: 0.15
+      high: 0.30
+      status: placeholder
+    value_at_risk_per_ha:
+      low: 800
+      base: 1500
+      high: 3000
+      status: placeholder
+      note: Pasture, fencing and livestock losses per burned hectare.
+    applications_per_season:
+      low: 2
+      base: 4
+      high: 8
+      status: placeholder
+    timing_coverage:
+      low: 0.2
+      base: 0.4
+      high: 0.7
+      status: placeholder
+    baseline_water_m3_per_ha:
+      low: 0
+      base: 3
+      high: 10
+      status: placeholder
