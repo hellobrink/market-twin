@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+import yaml
 
 from twin.assumptions import Range, load
 from twin.roi import INPUTS, farm_roi, simulate, summarise, tornado
@@ -53,16 +54,34 @@ def test_range_rejects_bad_order_and_status():
         Range(low=1, base=2, high=3, status="guess")
 
 
-def test_every_segment_has_every_input():
+def test_every_segment_has_every_input_for_every_strategy():
     assumptions = load(ASSUMPTIONS)
     for key in assumptions.segments:
-        ranges = assumptions.inputs_for(key)
-        assert set(INPUTS) <= set(ranges), key
-        assert "roi_hurdle" in ranges
+        for strategy in assumptions.strategies:
+            ranges = assumptions.inputs_for(key, strategy)
+            assert set(INPUTS) <= set(ranges), (key, strategy)
+            assert "roi_hurdle" in ranges
+
+
+def test_strategy_changes_only_its_own_inputs():
+    assumptions = load(ASSUMPTIONS)
+    scheduled = assumptions.inputs_for("sugarcane_ground", "scheduled")
+    alert = assumptions.inputs_for("sugarcane_ground", "alert")
+    changed = {name for name in scheduled if scheduled[name] != alert[name]}
+    assert changed == {"applications_per_season", "timing_coverage"}
+
+
+def test_segment_missing_a_strategy_is_rejected(tmp_path):
+    raw = yaml.safe_load(ASSUMPTIONS.read_text())
+    del raw["segments"]["sugarcane_ground"]["strategies"]["alert"]
+    broken = tmp_path / "broken.yaml"
+    broken.write_text(yaml.safe_dump(raw))
+    with pytest.raises(ValueError, match="sugarcane_ground"):
+        load(broken)
 
 
 def test_simulation_is_reproducible_and_stays_in_range():
-    ranges = load(ASSUMPTIONS).inputs_for("sugarcane_ground")
+    ranges = load(ASSUMPTIONS).inputs_for("sugarcane_ground", "scheduled")
     a = simulate(ranges, n=500, seed=1)
     b = simulate(ranges, n=500, seed=1)
     assert len(a) == 500
@@ -72,7 +91,7 @@ def test_simulation_is_reproducible_and_stays_in_range():
 
 
 def test_summary_reports_hurdle_share():
-    ranges = load(ASSUMPTIONS).inputs_for("sugarcane_ground")
+    ranges = load(ASSUMPTIONS).inputs_for("sugarcane_ground", "alert")
     stats = summarise(simulate(ranges, n=500))
     assert stats["roi_p10"] <= stats["roi_median"] <= stats["roi_p90"]
     assert 0 <= stats["share_clearing_hurdle"] <= stats["share_profitable"] <= 1

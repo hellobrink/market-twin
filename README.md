@@ -19,6 +19,7 @@ python3 -m venv .venv
 
 ```bash
 .venv/bin/python -m twin.report
+.venv/bin/python -m twin.report --strategy alert
 .venv/bin/pytest
 ```
 
@@ -26,7 +27,9 @@ python3 -m venv .venv
 
 [assumptions/nofire_brazil.yaml](assumptions/nofire_brazil.yaml) holds every input as a low, base and high value. Each input also has a `status` that says where the number came from. Most are still placeholders, so replace them as NoFire's interview data and the public datasets come in, and update `status` when you do.
 
-[twin/roi.py](twin/roi.py) contains the model, and its docstring sets out the equations. For each farm segment, the report prints:
+The file also lists treatment strategies, which describe how a farm decides when to treat. `scheduled` means treating on high-risk days all season, and `alert` means treating only when a fire alert comes in nearby. The gel lasts about 24 hours, so the strategy changes two things: how many treatments a farm pays for, and how many fires arrive while a treatment is still active. Each segment gives its own `applications_per_season` and `timing_coverage` for every strategy. A strategy can then reflect, for example, how long a drone operator takes to reach that kind of farm.
+
+[twin/roi.py](twin/roi.py) contains the model, and its docstring sets out the equations. For each farm segment, the report puts the strategies side by side and prints:
 
 - a base case that uses the middle value of every range
 - the spread of ROI across 10,000 Monte Carlo runs, and the share of runs that clear the farmer's ROI hurdle

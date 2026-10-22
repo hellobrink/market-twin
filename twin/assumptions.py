@@ -31,20 +31,22 @@ class Segment:
     label: str
     delivery: str
     params: dict[str, Range]
+    strategies: dict[str, dict[str, Range]]
 
 
 @dataclass(frozen=True)
 class Assumptions:
     currency: str
+    strategies: dict[str, str]
     product: dict[str, Range]
     delivery: dict[str, dict[str, Range]]
     buyer: dict[str, Range]
     segments: dict[str, Segment]
 
-    def inputs_for(self, segment_key: str) -> dict[str, Range]:
-        """Every range that applies to one segment, as a flat name -> Range map."""
+    def inputs_for(self, segment_key: str, strategy: str) -> dict[str, Range]:
+        """Every range that applies to one segment under one treatment strategy, as a flat name -> Range map."""
         seg = self.segments[segment_key]
-        return {**self.product, **self.delivery[seg.delivery], **self.buyer, **seg.params}
+        return {**self.product, **self.delivery[seg.delivery], **self.buyer, **seg.params, **seg.strategies[strategy]}
 
 
 def _ranges(raw: dict) -> dict[str, Range]:
@@ -53,6 +55,7 @@ def _ranges(raw: dict) -> dict[str, Range]:
 
 def load(path: str | Path) -> Assumptions:
     raw = yaml.safe_load(Path(path).read_text())
+    strategies = raw["strategies"]
     delivery = {mode: _ranges(spec) for mode, spec in raw["delivery"].items()}
     segments = {}
     for key, spec in raw["segments"].items():
@@ -61,9 +64,13 @@ def load(path: str | Path) -> Assumptions:
         mode = spec.pop("delivery")
         if mode not in delivery:
             raise ValueError(f"segment {key!r} uses unknown delivery mode {mode!r}")
-        segments[key] = Segment(key=key, label=label, delivery=mode, params=_ranges(spec))
+        seg_strategies = {name: _ranges(s) for name, s in spec.pop("strategies").items()}
+        if set(seg_strategies) != set(strategies):
+            raise ValueError(f"segment {key!r} must give values for strategies {sorted(strategies)}, got {sorted(seg_strategies)}")
+        segments[key] = Segment(key=key, label=label, delivery=mode, params=_ranges(spec), strategies=seg_strategies)
     return Assumptions(
         currency=raw["currency"],
+        strategies=strategies,
         product=_ranges(raw["product"]),
         delivery=delivery,
         buyer=_ranges(raw["buyer"]),

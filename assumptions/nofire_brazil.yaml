@@ -13,6 +13,14 @@
 
 currency: BRL
 
+# How a farm decides when to treat. The gel stays effective for about 24 hours,
+# so the choice sets both how often a farm pays for treatment and how many fires
+# arrive while a treatment is still active. Every segment gives its own
+# `applications_per_season` and `timing_coverage` for each strategy listed here.
+strategies:
+  scheduled: Treat on high-risk days through the dry season, whether or not a fire is near.
+  alert: Treat only when a fire alert comes in nearby, such as an INPE hotspot or a call from a neighbour.
+
 product:
   containment_rate:
     low: 0.40
@@ -103,24 +111,39 @@ segments:
       high: 14000
       status: placeholder
       note: Crop loss plus replanting per burned hectare. Replace with CONAB prices and yields.
-    applications_per_season:
-      low: 3
-      base: 6
-      high: 12
-      status: placeholder
-      note: Treatments per dry season. The gel lasts about 24 hours, so farms treat on high-risk days.
-    timing_coverage:
-      low: 0.3
-      base: 0.5
-      high: 0.8
-      status: placeholder
-      note: Share of fires that arrive while a treatment is still active.
     baseline_water_m3_per_ha:
       low: 0
       base: 5
       high: 15
       status: placeholder
       note: Water the farm already spends per treated hectare per season on fire prevention. Zero means no water saving to claim.
+    strategies:
+      scheduled:
+        applications_per_season:
+          low: 3
+          base: 6
+          high: 12
+          status: placeholder
+          note: Treatments per dry season, one per high-risk day the farm chooses to cover.
+        timing_coverage:
+          low: 0.3
+          base: 0.5
+          high: 0.8
+          status: placeholder
+          note: Share of fires that arrive while a treatment is still active.
+      alert:
+        applications_per_season:
+          low: 1
+          base: 2
+          high: 4
+          status: placeholder
+          note: One treatment per alert that comes close enough to act on.
+        timing_coverage:
+          low: 0.5
+          base: 0.75
+          high: 0.9
+          status: placeholder
+          note: The farm's own truck can treat within hours, so most alerted fires meet a treated strip. Fires with no warning are missed.
 
   smallholder_drone:
     label: Small mixed farm with no water truck, using a drone service
@@ -150,21 +173,35 @@ segments:
       base: 3500
       high: 7000
       status: placeholder
-    applications_per_season:
-      low: 2
-      base: 4
-      high: 8
-      status: placeholder
-    timing_coverage:
-      low: 0.3
-      base: 0.5
-      high: 0.8
-      status: placeholder
     baseline_water_m3_per_ha:
       low: 0
       base: 2
       high: 8
       status: placeholder
+    strategies:
+      scheduled:
+        applications_per_season:
+          low: 2
+          base: 4
+          high: 8
+          status: placeholder
+        timing_coverage:
+          low: 0.3
+          base: 0.5
+          high: 0.8
+          status: placeholder
+      alert:
+        applications_per_season:
+          low: 1
+          base: 2
+          high: 3
+          status: placeholder
+        timing_coverage:
+          low: 0.3
+          base: 0.55
+          high: 0.8
+          status: placeholder
+          note: Depends on a drone operator reaching the farm before the fire does.
 
   remote_ranch_drone:
     label: Remote cattle ranch using a drone service
@@ -195,18 +232,32 @@ segments:
       high: 3000
       status: placeholder
       note: Pasture, fencing and livestock losses per burned hectare.
-    applications_per_season:
-      low: 2
-      base: 4
-      high: 8
-      status: placeholder
-    timing_coverage:
-      low: 0.2
-      base: 0.4
-      high: 0.7
-      status: placeholder
     baseline_water_m3_per_ha:
       low: 0
       base: 3
       high: 10
       status: placeholder
+    strategies:
+      scheduled:
+        applications_per_season:
+          low: 2
+          base: 4
+          high: 8
+          status: placeholder
+        timing_coverage:
+          low: 0.2
+          base: 0.4
+          high: 0.7
+          status: placeholder
+      alert:
+        applications_per_season:
+          low: 1
+          base: 2
+          high: 4
+          status: placeholder
+        timing_coverage:
+          low: 0.2
+          base: 0.45
+          high: 0.7
+          status: placeholder
+          note: Alerts reach remote ranches less reliably, and the nearest drone operator may be hours away.
