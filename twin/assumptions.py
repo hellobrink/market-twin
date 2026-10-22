@@ -63,6 +63,13 @@ class AdoptionAssumptions:
 
 
 @dataclass(frozen=True)
+class ScenarioAssumptions:
+    rates: dict[str, Range]
+    events: dict[str, dict]
+    presets: dict[str, dict[str, float]]
+
+
+@dataclass(frozen=True)
 class Assumptions:
     currency: str
     strategies: dict[str, str]
@@ -73,6 +80,7 @@ class Assumptions:
     population: dict[str, Range]
     fire_scenarios: dict[str, FireScenario]
     adoption: AdoptionAssumptions | None = None
+    scenario: ScenarioAssumptions | None = None
 
     def inputs_for(self, segment_key: str, strategy: str) -> dict[str, Range]:
         """Every range that applies to one segment under one treatment strategy, as a flat name -> Range map."""
@@ -109,7 +117,23 @@ def load(path: str | Path) -> Assumptions:
         population=_ranges(raw.get("population", {})),
         fire_scenarios=_fire_scenarios(raw.get("fire_scenarios", {})),
         adoption=_adoption(raw["adoption"], segments) if "adoption" in raw else None,
+        scenario=_scenario(raw["scenario"]) if "scenario" in raw else None,
     )
+
+
+SHOCKS = ("subsidy", "restriction", "competitor", "drought", "tax_relief")
+
+
+def _scenario(raw: dict) -> ScenarioAssumptions:
+    raw = dict(raw)
+    events, presets = raw.pop("events"), raw.pop("presets")
+    missing = set(SHOCKS) - set(events)
+    if missing:
+        raise ValueError(f"scenario.events is missing {sorted(missing)}")
+    for name, preset in presets.items():
+        if set(preset) != {"severe", *SHOCKS}:
+            raise ValueError(f"scenario preset {name!r} must give chances for severe and {list(SHOCKS)}")
+    return ScenarioAssumptions(rates=_ranges(raw), events=events, presets=presets)
 
 
 def _adoption(raw: dict, segments: dict[str, Segment]) -> AdoptionAssumptions:

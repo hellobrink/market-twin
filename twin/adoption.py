@@ -79,25 +79,37 @@ def draw(rng: np.random.Generator, r: Range, size: int | None = None):
     return rng.triangular(r.low, r.base, r.high, size)
 
 
+def segment_inputs(market: Market, assumptions: Assumptions, strategy: str,
+                   rng: np.random.Generator | None = None, shared: dict[str, float] | None = None) -> dict[str, np.ndarray]:
+    """Every ROI input for every farm, one value per segment: drawn from its range, or its base value when rng is None.
+
+    Product-level ranges give every segment the same draw, and `shared` keeps those
+    draws so later calls (another strategy, say) reuse them.
+    """
+    shared = {} if shared is None else shared
+    inputs = {}
+    for name in INPUTS:
+        values = []
+        for key in market.segments:
+            r = assumptions.inputs_for(key, strategy)[name]
+            value = (lambda: r.base) if rng is None else (lambda: draw(rng, r))
+            if name in assumptions.product:
+                shared.setdefault(name, value())
+                values.append(shared[name])
+            else:
+                values.append(value())
+        inputs[name] = np.asarray(values, dtype=float)[market.segment_index]
+    return inputs
+
+
 def run_once(market: Market, assumptions: Assumptions, strategy: str, rng: np.random.Generator, peers: bool = True) -> tuple[pd.DataFrame, dict]:
     """One Monte Carlo run. Returns a row per season and segment, and the run's drawn inputs."""
     adoption = assumptions.adoption
     seg = market.segment_index
     n, n_seg, n_muni = market.size, len(market.segments), len(market.municipalities)
 
-    # Inputs drawn once per run and segment. Product-level ranges give every segment the same draw.
     shared: dict[str, float] = {}
-    inputs = {}
-    for name in INPUTS:
-        values = []
-        for key in market.segments:
-            r = assumptions.inputs_for(key, strategy)[name]
-            if name in assumptions.product:
-                shared.setdefault(name, draw(rng, r))
-                values.append(shared[name])
-            else:
-                values.append(draw(rng, r))
-        inputs[name] = np.asarray(values)[seg]
+    inputs = segment_inputs(market, assumptions, strategy, rng, shared)
     inputs["farm_area_ha"] = market.area_ha
     loss_share = draw(rng, assumptions.population["sugarcane_fire_loss_share"])
     inputs["value_at_risk_per_ha"] = np.where(np.isfinite(market.cane_value_per_ha), market.cane_value_per_ha * loss_share, inputs["value_at_risk_per_ha"])

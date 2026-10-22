@@ -17,6 +17,7 @@ from twin.overrides import override
 from twin.population import PROCESSED, StateData, add_risk, build_population, evaluate
 from twin.report import DEFAULT_ASSUMPTIONS
 from twin.roi import INPUTS, base_case, tornado
+from twin import scenario_view
 
 STATE = "SP"
 
@@ -130,7 +131,7 @@ def fan_chart(summary: pd.DataFrame, prefix: str, title: str, scale: float = 1.0
 a0 = base_assumptions()
 data, farms, points, names = state_data()
 
-st.sidebar.title("Levers")
+st.sidebar.title("Model settings")
 strategy = st.sidebar.radio(
     "Treatment strategy", list(a0.strategies), index=list(a0.strategies).index("alert"),
     format_func=lambda s: {"scheduled": "Scheduled", "alert": "On fire alerts"}.get(s, s),
@@ -183,7 +184,11 @@ st.caption(
     f"{len(farms):,} synthetic farms from the 2017 census, fire risk from MapBiomas burned area 2015-2024. "
     "Most behavioural inputs are still placeholders; see the Assumptions tab."
 )
-market_tab, adoption_tab, roi_tab, assumptions_tab = st.tabs(["Market today", "Adoption over time", "Farm ROI", "Assumptions"])
+scenario_tab, market_tab, adoption_tab, roi_tab, assumptions_tab = st.tabs(
+    ["Scenario", "Market today", "Adoption over time", "Farm ROI", "Assumptions"])
+
+with scenario_tab:
+    scenario_view.render(market(), data, assumptions, changes_key, names, points, bubble_map, money_m, SEGMENT_LABELS)
 
 with market_tab:
     scenarios = list(a0.fire_scenarios)

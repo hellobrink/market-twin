@@ -417,3 +417,66 @@ adoption:
       base: 0.2
       high: 0.35
       status: placeholder
+
+# Scenario mode (twin/scenario.py): one storyline played season by season under
+# a plan the team sets and a world of events it doesn't control.
+scenario:
+  testimonial_weight:
+    low: 2
+    base: 5
+    high: 10
+    status: placeholder
+    note: When a treated farm holds a fire line, its neighbours count it as this many adopters when deciding whether to buy. The pilot's sugarcane farmer became a customer and advocate after seeing a fire contained.
+  testimonial_memory:
+    low: 1
+    base: 2
+    high: 4
+    status: placeholder
+    note: Seasons for the effect of a contained fire on neighbours to halve.
+  partnership_boost:
+    low: 1.2
+    base: 1.5
+    high: 2.0
+    status: placeholder
+    note: Multiplier on peer imitation among cooperative members in seasons when NoFire runs a cooperative partnership.
+  # Event sizes are illustrative. Only the fire seasons rest on data.
+  events:
+    subsidy:
+      share: 0.3
+      seasons: 3
+      description: A state prevention programme pays part of the product price.
+    restriction:
+      description: A regulator suspends retardant sales for a season pending review.
+    competitor:
+      capture: 0.3
+      churn: 0.05
+      description: A cheaper rival product arrives and stays.
+    drought:
+      water_cost_multiplier: 2.0
+      description: A dry season makes water scarce and dearer.
+    tax_relief:
+      share: 0.1
+      description: The product qualifies for the reduced tax rate on agricultural inputs.
+  # Chance per season of each event. Competitor and tax relief happen at most once.
+  presets:
+    easy:
+      severe: 0.05
+      subsidy: 0.10
+      restriction: 0.0
+      competitor: 0.03
+      drought: 0.05
+      tax_relief: 0.05
+    normal:
+      severe: 0.10
+      subsidy: 0.05
+      restriction: 0.03
+      competitor: 0.08
+      drought: 0.10
+      tax_relief: 0.03
+    hard:
+      severe: 0.25
+      subsidy: 0.02
+      restriction: 0.08
+      competitor: 0.15
+      drought: 0.20
+      tax_relief: 0.0

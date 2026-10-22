@@ -160,8 +160,35 @@ The app has 4 tabs:
 
 To share the app beyond your laptop, push the repo and deploy `app.py` on Streamlit Community Cloud.
 
+## Scenario mode (first tab of the app)
+
+The Scenario tab plays one storyline season by season. [twin/scenario.py](twin/scenario.py) runs it, and [twin/scenario_view.py](twin/scenario_view.py) draws it.
+
+**Your plan** is a table with a row per season: price, treatment strategy, sales effort and whether a cooperative partnership runs. You also choose which segments to sell to. Edit any row to change the plan from that season, for example a lower launch price or a partnership from year 3.
+
+**The world** comes in 5 modes:
+
+| Mode | What happens |
+| --- | --- |
+| Easy, normal, hard | Each season draws a fire (normal or severe) and shocks at the preset's chances. "New random world" draws another. |
+| Replay 2015-2024 | The real fire seasons, using each year's MapBiomas burn rates, with no shocks |
+| Custom | You place fires and shocks season by season |
+
+The shocks are a state prevention subsidy, a season's sales suspension, a cheaper rival, a drought and tax relief on agricultural inputs. Their sizes and the presets' chances sit in the `scenario` section of the assumptions file. They are illustrative; only the fire seasons rest on data. You also set how long ago the last severe season was, because recent fires make farmers feel more at risk.
+
+The storyline adds 3 things to the adoption model:
+
+- Each adopter's farm meets a fire or doesn't. A treated farm that holds its fire line counts as `testimonial_weight` extra adopters for its neighbours, fading over `testimonial_memory` seasons. That mirrors the pilot's sugarcane farmer, who became a customer and advocate after seeing a fire contained.
+- Perceived fire risk follows the real seasons. It rises to at least what the latest season burned, then fades.
+- Shocks change what farmers pay, whether NoFire can sell, and churn.
+
+The results show users and revenue each season for your plan, with event markers and a shaded P10 to P90 range from 60 other runs. "Compare with an alternative plan" replays the same world with the same luck, so the gap between the 2 lines comes from the plan alone. A log tells the story season by season, including where treated farms held fires.
+
+In the 2015-2024 replay with alert treatment, a constant R$700 price ends with 8 users. R$400 ends with 35 users and about R$3m more revenue over the decade.
+
 ## Next
 
+- Turn-based play: pause after each season so the team can respond before the next.
 - Fill cooperative membership from Censo Agropecuário table 6846. IBGE's API refused connections when this was built, and its backup API sits behind a bot check.
 - Replace the placeholders with NoFire's interview and sales data, starting with product price, treatments per season, the ROI hurdle and cooperative membership.
 - Add pricing models beyond a price per hectare, such as a season subscription or a payment linked to insurance.
