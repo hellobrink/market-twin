@@ -45,6 +45,7 @@ class StateData:
     crops: pd.DataFrame
     hotspots: pd.DataFrame
     info: dict
+    burned: pd.DataFrame | None = None
 
     @classmethod
     def load(cls, state: str = "SP", directory: Path | None = None) -> "StateData":
@@ -56,6 +57,7 @@ class StateData:
             crops=pd.read_csv(d / "crops.csv"),
             hotspots=pd.read_csv(d / "hotspots.csv"),
             info=json.loads((d / "build_info.json").read_text()) if (d / "build_info.json").exists() else {},
+            burned=pd.read_csv(d / "burned_area.csv") if (d / "burned_area.csv").exists() else None,
         )
 
 
@@ -168,11 +170,12 @@ def build_population(data: StateData, seed: int = 0) -> pd.DataFrame:
     return farms
 
 
-def hotspot_rate(data: StateData) -> pd.Series:
-    """Mean annual reference-satellite hotspots per hectare of farmland, by municipality."""
+def hotspot_rate(data: StateData, year: int | None = None) -> pd.Series:
+    """Reference-satellite hotspots per hectare of farmland, by municipality: the annual mean, or one year's."""
     farmland = data.cells[(data.cells["activity"] == ACTIVITY_TOTAL) & (data.cells["area_group"] == AREA_GROUP_TOTAL)]
     farmland = farmland.set_index("municipality")["area_ha"]
-    hotspots = data.hotspots.groupby("municipality")["hotspots"].mean()
+    spots = data.hotspots if year is None else data.hotspots[data.hotspots["year"] == year]
+    hotspots = spots.groupby("municipality")["hotspots"].mean()
     rate = (hotspots / farmland).replace([np.inf, -np.inf], np.nan)
     state_rate = hotspots.sum() / farmland.sum()
     return rate.fillna(state_rate)

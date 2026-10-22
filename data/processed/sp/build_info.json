@@ -21,5 +21,12 @@
       2024
     ]
   },
+  "burned_area": {
+    "source": "MapBiomas Fogo collection 5.1, annual burned coverage",
+    "years": [
+      2015,
+      2024
+    ]
+  },
   "unmatched_hotspot_names": []
 }

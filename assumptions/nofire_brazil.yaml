@@ -74,11 +74,11 @@ delivery:
 # come from the data for each farm instead of the segment ranges below.
 population:
   fires_per_hotspot:
-    low: 1
-    base: 3
-    high: 10
-    status: placeholder
-    note: Fires reaching farmland for each hotspot the INPE reference satellite records. One satellite pass a day misses many fires, so this is above 1. Calibrate against MapBiomas Fogo burned area.
+    low: 0.03
+    base: 0.07
+    high: 0.47
+    status: public
+    note: Calibrated with `python -m twin.calibration` so the synthetic farms burn as much farmland as MapBiomas Fogo 5.1 recorded in 2015-2024 (mean 115,000 ha a year). Base is the mean year; low is the P10 year; high is 2024, when large fires burned 74 ha of farmland per hotspot against 14-22 in other years. Depends on the segments' burned shares, so rerun if they change.
   sugarcane_fire_loss_share:
     low: 0.3
     base: 0.6

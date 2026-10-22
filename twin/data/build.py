@@ -102,12 +102,22 @@ def main() -> None:
     if unmatched:
         print(f"INPE names with no IBGE match ({len(unmatched)}): {', '.join(unmatched)}")
 
+    from twin.data import mapbiomas  # needs geopandas and rasterio
+
+    boundaries = ibge.municipal_boundaries(state["ibge_code"], cache)
+    rasters = {year: mapbiomas.download_year(year, cache / "mapbiomas") for year in years}
+    burned = mapbiomas.burned_area_by_municipality(rasters, boundaries)
+    burned.round(2).to_csv(out / "burned_area.csv", index=False)
+    farmland = burned[[f"{g}_ha" for g in mapbiomas.FARMLAND_GROUPS]].sum(axis=1)
+    print(f"burned farmland: {farmland.sum() / len(years):,.0f} ha a year on average")
+
     (out / "build_info.json").write_text(json.dumps({
         "state": args.state,
         "built": date.today().isoformat(),
         "census": {"source": "IBGE Censo Agropecuário", "year": CENSUS_YEAR, "tables": [6754, 6877]},
         "crops": {"source": "IBGE Produção Agrícola Municipal", "year": args.crop_year, "table": 5457},
         "hotspots": {"source": "INPE BDQueimadas, reference satellite", "years": [first, last]},
+        "burned_area": {"source": "MapBiomas Fogo collection 5.1, annual burned coverage", "years": [first, last]},
         "unmatched_hotspot_names": unmatched,
     }, ensure_ascii=False, indent=2))
 

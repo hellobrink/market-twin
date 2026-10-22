@@ -64,6 +64,7 @@ The processed data in `data/processed/sp/` is committed, so the report runs offl
 | Farms with trucks by municipality and size group | Censo Agropecuário 2017, table 6877 | Whether a small farm applies from the ground or needs a drone service |
 | Sugarcane planted area and production value | IBGE PAM 2024, table 5457 | Which large crop farms grow cane, and cane value at risk per hectare |
 | Fire hotspots, reference satellite | INPE BDQueimadas, 2015 to 2024 | Each farm's annual fire probability |
+| Burned area by land cover, about 30 m | MapBiomas Fogo collection 5.1, 2015 to 2024 | Calibrating `fires_per_hotspot` |
 
 [twin/population.py](twin/population.py) explains each step. Farms are assigned to segments by these rules:
 
@@ -72,7 +73,24 @@ The processed data in `data/processed/sp/` is committed, so the report runs offl
 - Livestock farms of 500 ha or more go to `remote_ranch_drone`.
 - Every other farm sits outside the modelled market.
 
-A farm's fire probability is 1 - exp(-fires_per_hotspot x hotspot rate x farm area). The hotspot rate is the municipality's mean annual hotspots per hectare of farmland. `fires_per_hotspot` is a placeholder in the assumptions file, and the next thing to calibrate, ideally against MapBiomas Fogo burned area.
+A farm's fire probability is 1 - exp(-fires_per_hotspot x hotspot rate x farm area). The hotspot rate is the municipality's mean annual hotspots per hectare of farmland.
+
+### Calibrating fire risk
+
+```bash
+.venv/bin/python -m twin.calibration
+```
+
+This finds the `fires_per_hotspot` at which the synthetic farms burn as much farmland as MapBiomas recorded. The build step clips MapBiomas' annual burned-area rasters to each municipality and splits them by land cover, giving sugarcane, pasture, other farmland and native vegetation. The rasters are about 760 MB in `data/raw/`, and the processed table is `data/processed/sp/burned_area.csv`.
+
+Results for São Paulo, 2015 to 2024:
+
+- Farmland burned averaged 115,000 ha a year, about 0.8% of farmland. For sugarcane it was 1.3%, driven by 2024, when 458,000 ha of cane burned.
+- In most years, each reference-satellite hotspot matched 14 to 22 ha of burned farmland. In 2024 it matched 74 ha, because large fires produce fewer hotspots for each hectare burned.
+- The calibrated `fires_per_hotspot` is 0.07 for the mean year. That's 40 times lower than the placeholder of 3, and the assumptions file now uses it (low 0.03, high 0.47 for 2024).
+- Hotspots place burning across municipalities reasonably well, with a correlation of 0.76 between predicted and observed burned farmland.
+
+The calibration also exposes a problem with the formula. Fire probability rises with farm area, and a fire burns a fixed share of the farm, so expected burning per hectare grows with farm size. Once calibrated, farms over 2,500 ha hold 32% of farmland but get 90% of predicted burning, at 2.2% a year. Farms of 100 to 500 ha get 0.06% a year. That leaves almost no fire risk for a typical cane farm, and only 82 of the largest cane farms clear the ROI hurdle. The fix is to drive fire risk from MapBiomas burned fraction per municipality and land cover. Hotspots would then become a cross-check.
 
 IBGE suppresses area in census cells with few farms. The twin estimates those areas from each municipality's published total, so total synthetic farmland comes within 2% of the census.
 
@@ -85,4 +103,4 @@ Further simplifications in the population:
 
 ## Next
 
-Step 3 of the MVP adds adoption over time, with peer effects through cooperatives and Monte Carlo runs across the whole population.
+Before step 3, replace the hotspot formula with MapBiomas burned fraction, as described under "Calibrating fire risk". Step 3 of the MVP then adds adoption over time, with peer effects through cooperatives and Monte Carlo runs across the whole population.

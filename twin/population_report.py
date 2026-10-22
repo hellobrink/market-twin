@@ -96,7 +96,7 @@ def main() -> None:
         sources = f"census {info['census']['year']}, crops {info['crops']['year']}, hotspots {first}-{last}"
 
     print(f"Synthetic farm population: {STATES[args.state]['name']} ({sources})")
-    print(f"Fires per hotspot {pop['fires_per_hotspot'].base:g}, sugarcane loss share {pop['sugarcane_fire_loss_share'].base:g} (both placeholders)\n")
+    print(", ".join(f"{name} {r.base:g} ({r.status})" for name, r in pop.items()) + "\n")
     print(population_summary(farms, data, assumptions))
     for strategy in strategies:
         product_price = assumptions.product["product_cost_per_ha"].base

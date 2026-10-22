@@ -73,6 +73,17 @@ def sidra(table: int, period: str, variables: list[int], classifications: dict[i
     return parse_sidra(get_json(url, cache_dir))
 
 
+def municipal_boundaries(state_code: int, cache_dir: Path | None = None):
+    """Municipality polygons for a state (EPSG:4326) with a `municipality` code column."""
+    import geopandas as gpd  # only needed for the burned-area step
+
+    url = (f"https://servicodados.ibge.gov.br/api/v3/malhas/estados/{state_code}"
+           "?formato=application/vnd.geo%2Bjson&intrarregiao=municipio&qualidade=intermediaria")
+    frame = gpd.GeoDataFrame.from_features(get_json(url, cache_dir)["features"], crs="EPSG:4326")
+    frame["municipality"] = frame["codarea"].astype(int)
+    return frame[["municipality", "geometry"]]
+
+
 def municipalities(state_code: int, cache_dir: Path | None = None) -> pd.DataFrame:
     data = get_json(f"{LOCALIDADES}/estados/{state_code}/municipios", cache_dir)
     return pd.DataFrame({"municipality": [m["id"] for m in data], "name": [m["nome"] for m in data]})
