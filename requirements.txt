@@ -1,0 +1,7 @@
+numpy
+pandas
+pyyaml
+pytest
+# Only needed to rebuild data/processed (MapBiomas burned area)
+geopandas
+rasterio
