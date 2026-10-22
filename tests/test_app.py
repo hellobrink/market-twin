@@ -37,3 +37,15 @@ def test_app_runs_and_reruns_after_moving_the_price():
     price.set_value(300).run()
     assert not at.exception
     assert any("Product price" in c.value for c in at.sidebar.caption)  # the caption lists what is fixed
+
+
+def test_scenario_plays_every_season():
+    at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=180)
+    at.run()
+    assert at.session_state["scenario_shown"] == 0  # waits for Play
+    speed = next(s for s in at.select_slider if s.label == "Speed")
+    speed.set_value("Fast").run()
+    next(b for b in at.button if b.label == "▶ Play").click().run()
+    assert not at.exception
+    assert at.session_state["scenario_shown"] == 10
+    assert next(b for b in at.button if b.label.endswith("Play again"))

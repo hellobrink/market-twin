@@ -182,7 +182,7 @@ The storyline adds 3 things to the adoption model:
 - Perceived fire risk follows the real seasons. It rises to at least what the latest season burned, then fades.
 - Shocks change what farmers pay, whether NoFire can sell, and churn.
 
-The results show users and revenue each season for your plan, with event markers and a shaded P10 to P90 range from 60 other runs. "Compare with an alternative plan" replays the same world with the same luck, so the gap between the 2 lines comes from the plan alone. A log tells the story season by season, including where treated farms held fires.
+Press **Play** to watch the seasons unfold one at a time. Each season gets a headline card coloured by how bad the fire was, and pop-up alerts announce shocks and severe fires. The charts grow season by season on fixed axes, against a shaded P10 to P90 range from 60 other runs, while the log, map and table fill in. Speed sets the pause between seasons. Clicking anything mid-play pauses it, and the button then offers **Resume**. **Skip to the end** shows the whole story at once. Changing the world or the plan resets the story, ready to play again. "Compare with an alternative plan" replays the same world with the same luck, so the gap between the 2 lines comes from the plan alone. A log tells the story season by season, including where treated farms held fires.
 
 In the 2015-2024 replay with alert treatment, a constant R$700 price ends with 8 users. R$400 ends with 35 users and about R$3m more revenue over the decade.
 

@@ -115,7 +115,8 @@ class FireRates:
 class Story:
     seasons: pd.DataFrame
     log: list[dict]
-    saves_by_municipality: np.ndarray
+    saves_by_municipality: np.ndarray  # fires held over the whole run
+    saves_by_season: np.ndarray  # seasons x municipalities, for revealing a story season by season
 
 
 def fire_label(ratio: float) -> str:
@@ -174,6 +175,7 @@ def play(market: Market, fire_rates: FireRates, assumptions: Assumptions, plan: 
     adopted = np.zeros(n, dtype=bool)
     testimonials = np.zeros(n_muni)
     saves_by_muni = np.zeros(n_muni)
+    saves_by_season = []
     subsidy_left, rival, relief = 0, False, False
     rows, log, previous = [], [], None
     for t, (season, sp) in enumerate(zip(world.seasons, plan.seasons)):
@@ -247,6 +249,7 @@ def play(market: Market, fire_rates: FireRates, assumptions: Assumptions, plan: 
         revenue = np.where(treating, inputs["applications_per_season"] * at_one["treated_ha"] * sp.price, 0)
         saves = np.bincount(muni, weights=held, minlength=n_muni)
         saves_by_muni += saves
+        saves_by_season.append(saves)
         testimonials = testimonials * story_decay + story["testimonial_weight"] * saves
         ratio = actual[is_cane].mean() / market.rate_normal[is_cane].mean()
 
@@ -289,7 +292,7 @@ def play(market: Market, fire_rates: FireRates, assumptions: Assumptions, plan: 
         subsidy_left = max(0, subsidy_left - 1)
         perceived = np.maximum(market.rate_normal + (perceived - market.rate_normal) * decay, actual)
 
-    return Story(pd.DataFrame(rows), log, saves_by_muni)
+    return Story(pd.DataFrame(rows), log, saves_by_muni, np.array(saves_by_season))
 
 
 def play_range(market: Market, fire_rates: FireRates, assumptions: Assumptions, plan: Plan, world_for_run, runs: int,
