@@ -7,20 +7,14 @@ Run from the repo root:
 """
 
 import argparse
-from dataclasses import replace
 from pathlib import Path
 
 from twin.adoption import build_market, drivers, simulate_adoption, yearly_summary
-from twin.assumptions import Assumptions, Range, load
+from twin.assumptions import load
 from twin.data.codes import STATES
+from twin.overrides import override
 from twin.population import StateData, build_population
 from twin.report import DEFAULT_ASSUMPTIONS, money, pct
-
-
-def with_price(assumptions: Assumptions, price: float) -> Assumptions:
-    """The same assumptions with the product price fixed, for testing a pricing decision."""
-    product = {**assumptions.product, "product_cost_per_ha": Range(price, price, price, "placeholder", "Fixed by --price")}
-    return replace(assumptions, product=product)
 
 
 def millions(x: float) -> str:
@@ -42,7 +36,7 @@ def main() -> None:
     if args.strategy not in assumptions.strategies:
         parser.error(f"unknown strategy {args.strategy}; choose from {', '.join(assumptions.strategies)}")
     if args.price is not None:
-        assumptions = with_price(assumptions, args.price)
+        assumptions = override(assumptions, product={"product_cost_per_ha": args.price})
     adoption = assumptions.adoption
     runs = args.runs or adoption.runs
 

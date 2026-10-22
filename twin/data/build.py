@@ -106,6 +106,9 @@ def main() -> None:
     from twin.data import mapbiomas  # needs geopandas and rasterio
 
     boundaries = ibge.municipal_boundaries(state["ibge_code"], cache)
+    points = boundaries.geometry.representative_point()  # inside each municipality, for maps
+    pd.DataFrame({"municipality": boundaries["municipality"], "lat": points.y.round(5), "lon": points.x.round(5)}).to_csv(
+        out / "municipality_points.csv", index=False)
     rasters = {year: mapbiomas.download_year(year, cache / "mapbiomas") for year in years}
     burned = mapbiomas.area_by_municipality(rasters, boundaries)
     burned.round(2).to_csv(out / "burned_area.csv", index=False)

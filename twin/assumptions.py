@@ -5,7 +5,7 @@ from pathlib import Path
 
 import yaml
 
-STATUSES = {"placeholder", "pilot", "interview", "public"}
+STATUSES = {"placeholder", "pilot", "interview", "public", "scenario"}  # scenario: fixed for a what-if
 
 
 @dataclass(frozen=True)

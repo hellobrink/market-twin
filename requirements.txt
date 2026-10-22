@@ -2,6 +2,7 @@ numpy
 pandas
 pyyaml
 pytest
+streamlit
 # Only needed to rebuild data/processed (MapBiomas burned area)
 geopandas
 rasterio

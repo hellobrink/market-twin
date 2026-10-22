@@ -141,8 +141,27 @@ Nearly all adopters are sugarcane farms around Pitangueiras, Olímpia, Jaboticab
 
 Cooperative membership shares, the Bass rates, risk memory and churn are all placeholders. Membership by municipality and farm size can come from Censo Agropecuário table 6846, but IBGE was unreachable when this was built.
 
+## Coaching app (step 4)
+
+```bash
+.venv/bin/streamlit run app.py
+```
+
+This opens the app at http://localhost:8501. The sidebar holds the levers: treatment strategy, price, containment rate and the farmer's ROI hurdle, plus an "Adoption over time" panel with the chance of a severe season, how long farmers remember one, the Bass rates, cooperative membership for cane farms and the number of runs. A lever moved away from its default is fixed at that value, and every other input keeps its range in the Monte Carlo runs. The sidebar lists what is fixed.
+
+The app has 4 tabs:
+
+- **Market today**: who would buy under a chosen fire scenario, by segment, with a map of buyers by municipality.
+- **Adoption over time**: users and revenue each year as a median with a P10 to P90 band, how many users cooperatives and neighbours add, which inputs move the outcome most, and a map of where users are by the final year.
+- **Farm ROI**: one typical farm per segment, with the inputs that swing its ROI most.
+- **Assumptions**: every input with its range, status and note, filterable by status, so a session can see which numbers are still guesses.
+
+[twin/overrides.py](twin/overrides.py) applies the levers, and `--price` in the adoption report uses it too. A 200-run adoption simulation takes about 5 seconds, and results are cached for each combination of levers. The app needs `data/processed/sp/municipality_points.csv` for its maps, which the build step writes.
+
+To share the app beyond your laptop, push the repo and deploy `app.py` on Streamlit Community Cloud.
+
 ## Next
 
-- Fill cooperative membership from census table 6846.
-- Add pricing models beyond a price per hectare, such as a season subscription or a payment linked to insurance, and compare them with `--price`.
-- Show adoption on a map for coaching sessions, for example in a Streamlit app.
+- Fill cooperative membership from Censo Agropecuário table 6846. IBGE's API refused connections when this was built, and its backup API sits behind a bot check.
+- Replace the placeholders with NoFire's interview and sales data, starting with product price, treatments per season, the ROI hurdle and cooperative membership.
+- Add pricing models beyond a price per hectare, such as a season subscription or a payment linked to insurance.
