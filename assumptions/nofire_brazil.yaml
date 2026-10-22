@@ -347,3 +347,73 @@ segments:
           high: 0.7
           status: placeholder
           note: Alerts reach remote ranches less reliably, and the nearest drone operator may be hours away.
+
+# Adoption over time (twin/adoption.py). Each season a farm whose ROI, judged on
+# its current sense of fire risk, clears its own hurdle may adopt. The chance
+# follows the Bass model: an outside push (sales, demos, field days) plus
+# imitation of adopters among its peers. Cooperative members count fellow
+# members in their municipality as peers; non-members feel the whole
+# municipality, more weakly.
+adoption:
+  start_year: 2027
+  seasons: 10
+  runs: 200
+  innovation_rate:
+    low: 0.005
+    base: 0.01
+    high: 0.03
+    status: placeholder
+    note: Bass p. Chance per season that a farm which would profit adopts from outside influence alone. Agricultural studies typically find 0.01 to 0.03.
+  imitation_rate:
+    low: 0.2
+    base: 0.4
+    high: 0.6
+    status: placeholder
+    note: Bass q. Extra chance per season when every peer has adopted, scaled by the share that have.
+  non_member_peer_weight:
+    low: 0.1
+    base: 0.3
+    high: 0.5
+    status: placeholder
+    note: How strongly a farm outside a cooperative feels its municipality's adoption, relative to a member feeling its cooperative's.
+  risk_memory_half_life:
+    low: 1
+    base: 2
+    high: 4
+    status: placeholder
+    note: Seasons for a severe fire year's effect on perceived risk to halve. Perceived risk starts at the severe-year burn rate after a severe season and fades towards the normal rate.
+  churn_when_unprofitable:
+    low: 0.2
+    base: 0.4
+    high: 0.6
+    status: placeholder
+    note: Chance per season that an adopter stops when its perceived ROI falls below its hurdle.
+  severe_year_probability:
+    low: 0.05
+    base: 0.1
+    high: 0.2
+    status: public
+    note: Chance that a season is 2024-type. One of the 10 seasons in 2015-2024 was; a drier climate would push it up.
+  last_severe_year: 2024
+  coop_member_share:
+    sugarcane_ground:
+      low: 0.3
+      base: 0.5
+      high: 0.7
+      status: placeholder
+      note: Share of farms in a cooperative or producer association. Cane suppliers often belong to one. Replace with Censo Agropecuario table 6846.
+    smallholder_ground:
+      low: 0.1
+      base: 0.2
+      high: 0.3
+      status: placeholder
+    smallholder_drone:
+      low: 0.1
+      base: 0.2
+      high: 0.3
+      status: placeholder
+    remote_ranch_drone:
+      low: 0.1
+      base: 0.2
+      high: 0.35
+      status: placeholder

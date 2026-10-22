@@ -114,6 +114,35 @@ The fit showed that the formula makes burning per hectare grow with farm size. C
 - Only sugarcane farms get value at risk from data. The other segments use the segment's base value.
 - Every input except area, fire risk and cane value uses the segment's base value, so the population report has no Monte Carlo ranges yet.
 
+## Adoption over time (step 3)
+
+```bash
+.venv/bin/python -m twin.adoption_report
+.venv/bin/python -m twin.adoption_report --price 300 --runs 500
+```
+
+[twin/adoption.py](twin/adoption.py) follows every farm in the modelled market through 10 seasons from 2027, 200 times. Each run draws every uncertain input from its range, gives each farm its own ROI hurdle, and decides which farms belong to a cooperative. Then, each season:
+
+1. A farm judges its ROI on its perceived fire risk. That sits between its municipality's normal-year and severe-year burn rates: it jumps to the severe rate after a severe season and fades with `risk_memory_half_life`.
+2. Farms whose perceived ROI clears their hurdle adopt with the Bass chance 1 - (1 - p) x (1 - q x peer share). A cooperative member's peers are the other members in its municipality. A non-member feels the whole municipality, weighted by `non_member_peer_weight`.
+3. Adopters whose perceived ROI falls below their hurdle may stop.
+4. The season turns out severe with `severe_year_probability`, which is 10% by default because 1 of the 10 seasons from 2015 to 2024 was.
+
+The report shows the P10, median and P90 of adopters and revenue each year. It also shows how many adopters cooperative and neighbour effects add, which drawn inputs move the result most, and where adopters cluster. `--price` fixes the product price, so pricing options can be compared.
+
+With the current assumptions and alert treatment:
+
+| Price per ha per application | Median adopters, 2036 | P90 adopters, 2036 | Median revenue, 2036 | Added by peer effects |
+| --- | --- | --- | --- | --- |
+| Drawn from R$300 to R$1,500 (base R$700) | 86 | 406 | R$5.1m | 86 against 64 without |
+| R$300 | 274 | 956 | R$4.7m | 274 against 180 without |
+
+Nearly all adopters are sugarcane farms around Pitangueiras, Olímpia, Jaboticabal and Sertãozinho. The biggest single driver is whether a severe season happens during the run. Price, containment rate and how long farmers remember a bad year come next. At R$300, about 3 times as many farms adopt, but revenue stays about the same, so a lower price widens reach without growing the business.
+
+Cooperative membership shares, the Bass rates, risk memory and churn are all placeholders. Membership by municipality and farm size can come from Censo Agropecuário table 6846, but IBGE was unreachable when this was built.
+
 ## Next
 
-Step 3 of the MVP adds adoption over time, with peer effects through cooperatives and Monte Carlo runs across the whole population.
+- Fill cooperative membership from census table 6846.
+- Add pricing models beyond a price per hectare, such as a season subscription or a payment linked to insurance, and compare them with `--price`.
+- Show adoption on a map for coaching sessions, for example in a Streamlit app.

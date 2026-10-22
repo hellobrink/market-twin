@@ -53,6 +53,16 @@ class FireScenario:
 
 
 @dataclass(frozen=True)
+class AdoptionAssumptions:
+    start_year: int
+    seasons: int
+    runs: int
+    last_severe_year: int
+    rates: dict[str, Range]
+    coop_member_share: dict[str, Range]
+
+
+@dataclass(frozen=True)
 class Assumptions:
     currency: str
     strategies: dict[str, str]
@@ -62,6 +72,7 @@ class Assumptions:
     segments: dict[str, Segment]
     population: dict[str, Range]
     fire_scenarios: dict[str, FireScenario]
+    adoption: AdoptionAssumptions | None = None
 
     def inputs_for(self, segment_key: str, strategy: str) -> dict[str, Range]:
         """Every range that applies to one segment under one treatment strategy, as a flat name -> Range map."""
@@ -97,7 +108,17 @@ def load(path: str | Path) -> Assumptions:
         segments=segments,
         population=_ranges(raw.get("population", {})),
         fire_scenarios=_fire_scenarios(raw.get("fire_scenarios", {})),
+        adoption=_adoption(raw["adoption"], segments) if "adoption" in raw else None,
     )
+
+
+def _adoption(raw: dict, segments: dict[str, Segment]) -> AdoptionAssumptions:
+    raw = dict(raw)
+    fixed = {key: int(raw.pop(key)) for key in ("start_year", "seasons", "runs", "last_severe_year")}
+    coop = _ranges(raw.pop("coop_member_share"))
+    if set(coop) != set(segments):
+        raise ValueError(f"adoption.coop_member_share must cover segments {sorted(segments)}, got {sorted(coop)}")
+    return AdoptionAssumptions(**fixed, rates=_ranges(raw), coop_member_share=coop)
 
 
 def _fire_scenarios(raw: dict) -> dict[str, FireScenario]:
