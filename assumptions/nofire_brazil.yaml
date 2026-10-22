@@ -83,6 +83,11 @@ fire_scenarios:
   severe:
     years: 2024-2024
     description: A 2024-type year, when drought and wind drove fires across the cane belt.
+  long_run:
+    mix:
+      normal: 0.9
+      severe: 0.1
+    description: The average year over a decade with one severe season, as in 2015-2024. A drier climate would raise the severe share.
 
 population:
   sugarcane_fire_loss_share:

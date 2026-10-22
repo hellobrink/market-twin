@@ -9,7 +9,7 @@ from twin.data.codes import ACTIVITY_TOTAL, AREA_GROUP_TOTAL
 from twin.data.ibge import parse_sidra, parse_value
 from twin.data.inpe import match_municipalities, normalise_name
 from twin.population import (
-    StateData, add_risk, assign_segments, build_population, burn_rates, evaluate, impute_suppressed_areas, sample_areas,
+    StateData, add_risk, assign_segments, build_population, burn_rates, evaluate, scenario_burn_rates, impute_suppressed_areas, sample_areas,
     truck_share,
 )
 
@@ -124,6 +124,14 @@ def test_burn_rates_divide_burned_by_land_and_lean_on_the_state_rate_where_land_
     assert raw.loc[1, "cane"] == pytest.approx(0.09) and raw.loc[1, "pasture"] == pytest.approx(0.015)
     pulled = burn_rates(data, 2024, 2024)
     assert pulled.loc[2, "cane"] == pytest.approx(0.09)  # no cane land: the state rate
+
+
+def test_mixed_scenario_weights_its_parts():
+    data = tiny_state()
+    assumptions = load(ASSUMPTIONS)
+    mix = assumptions.fire_scenarios["long_run"].mix
+    expected = mix["normal"] * burn_rates(data, 2015, 2023) + mix["severe"] * burn_rates(data, 2024, 2024)
+    assert np.allclose(scenario_burn_rates(data, assumptions, "long_run"), expected)
 
 
 def test_risk_comes_from_burn_rates_and_cane_value():

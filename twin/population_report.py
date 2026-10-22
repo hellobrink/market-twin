@@ -113,8 +113,11 @@ def main() -> None:
     for scenario in scenarios:
         fire = assumptions.fire_scenarios[scenario]
         at_risk = add_risk(farms, data, assumptions, scenario)
-        print(f"\n{'=' * 90}\nFire scenario: {scenario} ({fire.first}-{fire.last}). {fire.description}")
-        print(f"  Cross-check: INPE hotspots and MapBiomas burned farmland rank municipalities alike at {hotspot_cross_check(data, fire.first, fire.last):.2f}\n")
+        print(f"\n{'=' * 90}\nFire scenario: {scenario} ({fire.label()}). {fire.description}")
+        if not fire.mix:
+            check = hotspot_cross_check(data, fire.first, fire.last)
+            print(f"  Cross-check: INPE hotspots and MapBiomas burned farmland rank municipalities alike at {check:.2f}")
+        print()
         print(risk_summary(at_risk))
         for strategy in strategies:
             print()

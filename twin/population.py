@@ -224,6 +224,15 @@ def burn_rates(data: StateData, first: int, last: int, prior_ha: float = BURN_RA
     return rate.clip(0, 1).rename(columns=dict(zip(cols, BURN_COVERS)))
 
 
+def scenario_burn_rates(data: StateData, assumptions: Assumptions, scenario: str) -> pd.DataFrame:
+    """Burn rates for a fire scenario: one span of years, or a weighted mix of year-based scenarios."""
+    fire = assumptions.fire_scenarios[scenario]
+    if not fire.mix:
+        return burn_rates(data, fire.first, fire.last)
+    parts = [share * scenario_burn_rates(data, assumptions, name) for name, share in fire.mix.items()]
+    return sum(parts[1:], parts[0])
+
+
 def hotspot_cross_check(data: StateData, first: int, last: int) -> float:
     """Rank correlation across municipalities between hotspots and burned area, both per hectare of MapBiomas farmland.
 
@@ -248,8 +257,7 @@ def add_risk(farms: pd.DataFrame, data: StateData, assumptions: Assumptions, sce
     burn rate / share. Where the burn rate is above the share, the chance is capped
     at 1 and the share rises to the burn rate.
     """
-    fire = assumptions.fire_scenarios[scenario]
-    rates = burn_rates(data, fire.first, fire.last).stack()
+    rates = scenario_burn_rates(data, assumptions, scenario).stack()
     cover = farms["segment"].map(SEGMENT_COVER)
     rate = pd.Series(rates.reindex(pd.MultiIndex.from_arrays([farms["municipality"], cover])).to_numpy(), index=farms.index)
     share = farms["segment"].map({k: s.params["burned_area_if_fire_share"].base for k, s in assumptions.segments.items()})

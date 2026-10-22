@@ -1,6 +1,8 @@
 """Calibrate `fires_per_hotspot` so the synthetic farms burn as much farmland as MapBiomas records.
 
-The population gives each farm an annual fire probability
+The population now takes fire risk straight from MapBiomas burn rates (see
+`twin.population.add_risk`). This module documents why: the first version gave
+each farm an annual fire probability
 
     p = 1 - exp(-fires_per_hotspot * hotspot_rate * area_ha)
 

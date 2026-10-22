@@ -36,12 +36,20 @@ class Segment:
 
 @dataclass(frozen=True)
 class FireScenario:
-    """A span of years whose MapBiomas burn rates are averaged to set farm fire risk."""
+    """How farm fire risk is set: MapBiomas burn rates averaged over a span of years,
+    or a weighted mix of other scenarios (`mix`), such as mostly normal years with an
+    occasional severe one."""
 
     name: str
-    first: int
-    last: int
     description: str
+    first: int | None = None
+    last: int | None = None
+    mix: dict[str, float] | None = None
+
+    def label(self) -> str:
+        if self.mix:
+            return ", ".join(f"{share:.0%} {name}" for name, share in self.mix.items())
+        return f"{self.first}-{self.last}"
 
 
 @dataclass(frozen=True)
@@ -88,12 +96,27 @@ def load(path: str | Path) -> Assumptions:
         buyer=_ranges(raw["buyer"]),
         segments=segments,
         population=_ranges(raw.get("population", {})),
-        fire_scenarios={name: _fire_scenario(name, spec) for name, spec in raw.get("fire_scenarios", {}).items()},
+        fire_scenarios=_fire_scenarios(raw.get("fire_scenarios", {})),
     )
 
 
+def _fire_scenarios(raw: dict) -> dict[str, FireScenario]:
+    scenarios = {name: _fire_scenario(name, spec) for name, spec in raw.items()}
+    for s in scenarios.values():
+        for part in (s.mix or {}):
+            if part not in scenarios or scenarios[part].mix:
+                raise ValueError(f"fire scenario {s.name!r} mixes {part!r}, which must be a year-based scenario")
+    return scenarios
+
+
 def _fire_scenario(name: str, spec: dict) -> FireScenario:
+    description = spec.get("description", "")
+    if "mix" in spec:
+        mix = {k: float(v) for k, v in spec["mix"].items()}
+        if abs(sum(mix.values()) - 1) > 1e-9:
+            raise ValueError(f"fire scenario {name!r} mix must add up to 1, got {sum(mix.values())}")
+        return FireScenario(name=name, description=description, mix=mix)
     first, last = (int(y) for y in str(spec["years"]).split("-"))
     if first > last:
         raise ValueError(f"fire scenario {name!r} has years {spec['years']!r}; the first year must come first")
-    return FireScenario(name=name, first=first, last=last, description=spec.get("description", ""))
+    return FireScenario(name=name, description=description, first=first, last=last)
