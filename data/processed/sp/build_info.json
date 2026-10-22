@@ -1,0 +1,25 @@
+{
+  "state": "SP",
+  "built": "2026-10-22",
+  "census": {
+    "source": "IBGE Censo Agropecuário",
+    "year": "2017",
+    "tables": [
+      6754,
+      6877
+    ]
+  },
+  "crops": {
+    "source": "IBGE Produção Agrícola Municipal",
+    "year": "2024",
+    "table": 5457
+  },
+  "hotspots": {
+    "source": "INPE BDQueimadas, reference satellite",
+    "years": [
+      2015,
+      2024
+    ]
+  },
+  "unmatched_hotspot_names": []
+}

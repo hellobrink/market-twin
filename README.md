@@ -43,6 +43,46 @@ The file also lists treatment strategies, which describe how a farm decides when
 - Inputs are sampled independently. In reality, fire probability and burned area rise together in a drought year.
 - Water savings only count where the farm already spends water on fire prevention.
 
+## Farm population (step 2)
+
+The twin builds one synthetic farm for every crop and livestock farm in the 2017 census for São Paulo (181,072 farms). It then runs the ROI model on each farm in the modelled market.
+
+```bash
+.venv/bin/python -m twin.population_report
+.venv/bin/python -m twin.population_report --strategy alert --top 15
+```
+
+The processed data in `data/processed/sp/` is committed, so the report runs offline. To download it again, or to pick different years:
+
+```bash
+.venv/bin/python -m twin.data.build --state SP --crop-year 2024 --hotspot-years 2015-2024
+```
+
+| Data | Source | Used for |
+| --- | --- | --- |
+| Farm counts and area by municipality, activity and size group | IBGE Censo Agropecuário 2017, table 6754 | One synthetic farm per establishment, with an area drawn to match the census |
+| Farms with trucks by municipality and size group | Censo Agropecuário 2017, table 6877 | Whether a small farm applies from the ground or needs a drone service |
+| Sugarcane planted area and production value | IBGE PAM 2024, table 5457 | Which large crop farms grow cane, and cane value at risk per hectare |
+| Fire hotspots, reference satellite | INPE BDQueimadas, 2015 to 2024 | Each farm's annual fire probability |
+
+[twin/population.py](twin/population.py) explains each step. Farms are assigned to segments by these rules:
+
+- Crop farms of 5 to 100 ha go to `smallholder_ground` if they have a truck, otherwise to `smallholder_drone`.
+- Temporary-crop farms of 100 ha or more go to `sugarcane_ground`, with a probability equal to sugarcane's share of the municipality's crop area.
+- Livestock farms of 500 ha or more go to `remote_ranch_drone`.
+- Every other farm sits outside the modelled market.
+
+A farm's fire probability is 1 - exp(-fires_per_hotspot x hotspot rate x farm area). The hotspot rate is the municipality's mean annual hotspots per hectare of farmland. `fires_per_hotspot` is a placeholder in the assumptions file, and the next thing to calibrate, ideally against MapBiomas Fogo burned area.
+
+IBGE suppresses area in census cells with few farms. The twin estimates those areas from each municipality's published total, so total synthetic farmland comes within 2% of the census.
+
+Further simplifications in the population:
+
+- The census is from 2017, and the next one is not out yet.
+- Only sugarcane farms get value at risk from data. The other segments use the segment's base value.
+- The burned share applies to the whole farm, which overstates losses on the very largest farms.
+- Every input except area, fire probability and cane value uses the segment's base value, so the population report has no Monte Carlo ranges yet.
+
 ## Next
 
-Step 2 of the MVP builds the synthetic farm population for one state from IBGE census tables and INPE fire data.
+Step 3 of the MVP adds adoption over time, with peer effects through cooperatives and Monte Carlo runs across the whole population.

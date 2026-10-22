@@ -42,6 +42,7 @@ class Assumptions:
     delivery: dict[str, dict[str, Range]]
     buyer: dict[str, Range]
     segments: dict[str, Segment]
+    population: dict[str, Range]
 
     def inputs_for(self, segment_key: str, strategy: str) -> dict[str, Range]:
         """Every range that applies to one segment under one treatment strategy, as a flat name -> Range map."""
@@ -75,4 +76,5 @@ def load(path: str | Path) -> Assumptions:
         delivery=delivery,
         buyer=_ranges(raw["buyer"]),
         segments=segments,
+        population=_ranges(raw.get("population", {})),
     )
