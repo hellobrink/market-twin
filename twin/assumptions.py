@@ -35,6 +35,16 @@ class Segment:
 
 
 @dataclass(frozen=True)
+class FireScenario:
+    """A span of years whose MapBiomas burn rates are averaged to set farm fire risk."""
+
+    name: str
+    first: int
+    last: int
+    description: str
+
+
+@dataclass(frozen=True)
 class Assumptions:
     currency: str
     strategies: dict[str, str]
@@ -43,6 +53,7 @@ class Assumptions:
     buyer: dict[str, Range]
     segments: dict[str, Segment]
     population: dict[str, Range]
+    fire_scenarios: dict[str, FireScenario]
 
     def inputs_for(self, segment_key: str, strategy: str) -> dict[str, Range]:
         """Every range that applies to one segment under one treatment strategy, as a flat name -> Range map."""
@@ -77,4 +88,12 @@ def load(path: str | Path) -> Assumptions:
         buyer=_ranges(raw["buyer"]),
         segments=segments,
         population=_ranges(raw.get("population", {})),
+        fire_scenarios={name: _fire_scenario(name, spec) for name, spec in raw.get("fire_scenarios", {}).items()},
     )
+
+
+def _fire_scenario(name: str, spec: dict) -> FireScenario:
+    first, last = (int(y) for y in str(spec["years"]).split("-"))
+    if first > last:
+        raise ValueError(f"fire scenario {name!r} has years {spec['years']!r}; the first year must come first")
+    return FireScenario(name=name, first=first, last=last, description=spec.get("description", ""))

@@ -9,7 +9,8 @@ and each farm gets:
 - a truck or not, drawn from the share of farms of that size in that
   municipality that own one
 - a segment, from the rules in `assign_segments`
-- an annual fire probability from its municipality's INPE hotspot rate and its area
+- fire risk from its municipality's MapBiomas burn rate for its land cover, in the
+  chosen fire scenario (see `add_risk`)
 - for sugarcane farms, a value at risk from the municipality's PAM production
   value per hectare
 
@@ -36,6 +37,17 @@ LARGE_CANE_MIN_HA = 100  # temporary-crop farms this size or larger, if their dr
 RANCH_MIN_HA = 500  # livestock farms this size or larger
 CROP_ACTIVITIES = {"temporary_crops", "permanent_crops", "horticulture"}
 
+# Which MapBiomas land cover sets each segment's fire risk. Smallholders use the
+# rate for crops other than cane and pasture.
+SEGMENT_COVER = {
+    "sugarcane_ground": "cane",
+    "remote_ranch_drone": "pasture",
+    "smallholder_ground": "other_farmland",
+    "smallholder_drone": "other_farmland",
+}
+BURN_COVERS = ["cane", "pasture", "other_farmland"]
+BURN_RATE_PRIOR_HA = 1_000
+
 
 @dataclass(frozen=True)
 class StateData:
@@ -46,6 +58,7 @@ class StateData:
     hotspots: pd.DataFrame
     info: dict
     burned: pd.DataFrame | None = None
+    land_cover: pd.DataFrame | None = None
 
     @classmethod
     def load(cls, state: str = "SP", directory: Path | None = None) -> "StateData":
@@ -58,6 +71,7 @@ class StateData:
             hotspots=pd.read_csv(d / "hotspots.csv"),
             info=json.loads((d / "build_info.json").read_text()) if (d / "build_info.json").exists() else {},
             burned=pd.read_csv(d / "burned_area.csv") if (d / "burned_area.csv").exists() else None,
+            land_cover=pd.read_csv(d / "land_cover.csv") if (d / "land_cover.csv").exists() else None,
         )
 
 
@@ -188,15 +202,65 @@ def sugarcane_value_per_ha(data: StateData) -> pd.Series:
     return value.fillna(c["cane_value_brl"].sum() / c["cane_harvested_ha"].sum())
 
 
-def add_risk(farms: pd.DataFrame, data: StateData, fires_per_hotspot: float, sugarcane_fire_loss_share: float) -> pd.DataFrame:
-    """Add each farm's annual fire probability and, for sugarcane farms, value at risk per hectare."""
-    rate = farms["municipality"].map(hotspot_rate(data))
+def burn_rates(data: StateData, first: int, last: int, prior_ha: float = BURN_RATE_PRIOR_HA) -> pd.DataFrame:
+    """Share of each land cover that burns in a year, by municipality, averaged over first..last.
+
+    Burned area comes from MapBiomas Fogo, land area from MapBiomas land cover. Where a
+    municipality has little of a land cover, a few burned hectares would give a wild
+    rate, so each rate is pulled towards the state rate as if `prior_ha` more hectares
+    had burned at the state rate.
+    """
+    if data.burned is None or data.land_cover is None:
+        raise ValueError("burned_area.csv and land_cover.csv are needed; run `python -m twin.data.build` first")
+    years = data.burned["year"].between(first, last)
+    if not years.any():
+        raise ValueError(f"no MapBiomas burned area for {first}-{last}")
+    cols = [f"{c}_ha" for c in BURN_COVERS]
+    burned = data.burned[years].groupby("municipality")[cols].mean()
+    land = data.land_cover.set_index("municipality")[cols]
+    burned = burned.reindex(land.index, fill_value=0)
+    state = burned.sum() / land.sum()
+    rate = (burned + prior_ha * state) / (land + prior_ha)
+    return rate.clip(0, 1).rename(columns=dict(zip(cols, BURN_COVERS)))
+
+
+def hotspot_cross_check(data: StateData, first: int, last: int) -> float:
+    """Rank correlation across municipalities between hotspots and burned area, both per hectare of MapBiomas farmland.
+
+    Ranks, because a handful of urban municipalities with almost no farmland have
+    extreme rates that would swamp an ordinary correlation.
+    """
+    years = range(first, last + 1)
+    cols = [f"{c}_ha" for c in BURN_COVERS]
+    farmland = data.land_cover.set_index("municipality")[cols].sum(axis=1)
+    spots = data.hotspots[data.hotspots["year"].isin(years)].groupby("municipality")["hotspots"].mean()
+    burned = data.burned[data.burned["year"].isin(years)].groupby("municipality")[cols].mean().sum(axis=1)
+    both = pd.DataFrame({"hotspots": spots / farmland, "burned": burned / farmland}).replace([np.inf, -np.inf], np.nan).dropna()
+    return float(both["hotspots"].rank().corr(both["burned"].rank()))
+
+
+def add_risk(farms: pd.DataFrame, data: StateData, assumptions: Assumptions, scenario: str) -> pd.DataFrame:
+    """Add each farm's fire risk under a fire scenario and, for sugarcane farms, value at risk per hectare.
+
+    A farm's expected burned share in a year is its municipality's burn rate for the
+    farm's land cover. The ROI model splits that into a chance of fire and a share
+    burned when fire comes: the share is the segment's base value, and the chance is
+    burn rate / share. Where the burn rate is above the share, the chance is capped
+    at 1 and the share rises to the burn rate.
+    """
+    fire = assumptions.fire_scenarios[scenario]
+    rates = burn_rates(data, fire.first, fire.last).stack()
+    cover = farms["segment"].map(SEGMENT_COVER)
+    rate = pd.Series(rates.reindex(pd.MultiIndex.from_arrays([farms["municipality"], cover])).to_numpy(), index=farms.index)
+    share = farms["segment"].map({k: s.params["burned_area_if_fire_share"].base for k, s in assumptions.segments.items()})
+    chance = (rate / share).clip(upper=1)
     cane_value = farms["municipality"].map(sugarcane_value_per_ha(data))
-    is_cane = farms["segment"] == "sugarcane_ground"
+    loss_share = assumptions.population["sugarcane_fire_loss_share"].base
     return farms.assign(
-        hotspot_rate_per_ha=rate,
-        annual_fire_probability=1 - np.exp(-fires_per_hotspot * rate * farms["area_ha"]),
-        value_at_risk_per_ha=(cane_value * sugarcane_fire_loss_share).where(is_cane),
+        burn_rate=rate,
+        annual_fire_probability=chance,
+        burned_area_if_fire_share=(rate / chance).where(chance > 0, share),
+        value_at_risk_per_ha=(cane_value * loss_share).where(farms["segment"] == "sugarcane_ground"),
     )
 
 
@@ -210,6 +274,7 @@ def evaluate(farms: pd.DataFrame, assumptions: Assumptions, strategy: str) -> pd
         inputs[name] = segment.map(base).to_numpy(float)
     inputs["farm_area_ha"] = farms["area_ha"].to_numpy()
     inputs["annual_fire_probability"] = farms["annual_fire_probability"].to_numpy()
+    inputs["burned_area_if_fire_share"] = farms["burned_area_if_fire_share"].to_numpy()
     from_data = farms["value_at_risk_per_ha"].to_numpy(float)
     inputs["value_at_risk_per_ha"] = np.where(np.isfinite(from_data), from_data, inputs["value_at_risk_per_ha"])
 

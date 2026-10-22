@@ -9,7 +9,8 @@ from twin.data.codes import ACTIVITY_TOTAL, AREA_GROUP_TOTAL
 from twin.data.ibge import parse_sidra, parse_value
 from twin.data.inpe import match_municipalities, normalise_name
 from twin.population import (
-    StateData, add_risk, assign_segments, build_population, evaluate, impute_suppressed_areas, sample_areas, truck_share,
+    StateData, add_risk, assign_segments, build_population, burn_rates, evaluate, impute_suppressed_areas, sample_areas,
+    truck_share,
 )
 
 ASSUMPTIONS = Path(__file__).resolve().parent.parent / "assumptions" / "nofire_brazil.yaml"
@@ -46,7 +47,17 @@ def tiny_state() -> StateData:
     hotspots = pd.DataFrame([(1, 2023, 10), (1, 2024, 30), (2, 2023, 0), (2, 2024, 0)],
                             columns=["municipality", "year", "hotspots"])
     munis = pd.DataFrame({"municipality": [1, 2], "name": ["Alpha", "Beta"]})
-    return StateData(municipalities=munis, cells=cells, trucks=trucks, crops=crops, hotspots=hotspots, info={})
+    cover = ["cane_ha", "pasture_ha", "other_farmland_ha", "native_ha", "other_ha"]
+    burned = pd.DataFrame([
+        (1, 2023, 1_000, 100, 50, 0, 0),
+        (1, 2024, 9_000, 300, 5_000, 0, 0),
+        (2, 2023, 0, 0, 0, 0, 0),
+        (2, 2024, 0, 0, 0, 0, 0),
+    ], columns=["municipality", "year", *cover])
+    land_cover = pd.DataFrame([(1, 2020, 100_000, 20_000, 10_000, 0, 0), (2, 2020, 0, 0, 600, 0, 0)],
+                              columns=["municipality", "year", *cover])
+    return StateData(municipalities=munis, cells=cells, trucks=trucks, crops=crops, hotspots=hotspots, info={},
+                     burned=burned, land_cover=land_cover)
 
 
 def test_sample_areas_stay_in_group_and_match_census_mean():
@@ -107,23 +118,34 @@ def test_segment_rules():
     assert segments == ["sugarcane_ground", None, "smallholder_ground", "smallholder_drone", "remote_ranch_drone", None, None]
 
 
-def test_risk_comes_from_hotspots_and_cane_value():
+def test_burn_rates_divide_burned_by_land_and_lean_on_the_state_rate_where_land_is_scarce():
     data = tiny_state()
-    farms = add_risk(build_population(data), data, fires_per_hotspot=2, sugarcane_fire_loss_share=0.5)
-    beta = farms[farms["municipality"] == 2]
-    assert (beta["annual_fire_probability"] == 0).all()
-    alpha_cane = farms[(farms["municipality"] == 1) & (farms["segment"] == "sugarcane_ground")]
-    assert len(alpha_cane) == 10
-    assert (alpha_cane["value_at_risk_per_ha"] == 5_000).all()
-    expected = 1 - np.exp(-2 * (20 / 10_000) * alpha_cane["area_ha"])  # 20 hotspots a year over 10,000 ha
-    assert np.allclose(alpha_cane["annual_fire_probability"], expected)
+    raw = burn_rates(data, 2024, 2024, prior_ha=0)
+    assert raw.loc[1, "cane"] == pytest.approx(0.09) and raw.loc[1, "pasture"] == pytest.approx(0.015)
+    pulled = burn_rates(data, 2024, 2024)
+    assert pulled.loc[2, "cane"] == pytest.approx(0.09)  # no cane land: the state rate
+
+
+def test_risk_comes_from_burn_rates_and_cane_value():
+    data = tiny_state()
+    assumptions = load(ASSUMPTIONS)
+    assert assumptions.fire_scenarios["severe"].first == 2024
+    farms = add_risk(build_population(data), data, assumptions, "severe")
+    cane = farms[(farms["municipality"] == 1) & (farms["segment"] == "sugarcane_ground")]
+    assert len(cane) == 10
+    assert np.allclose(cane["burn_rate"], burn_rates(data, 2024, 2024).loc[1, "cane"])
+    assert np.allclose(cane["annual_fire_probability"] * cane["burned_area_if_fire_share"], cane["burn_rate"])
+    assert (cane["value_at_risk_per_ha"] == 6_000).all()  # R$10,000/ha x 0.6 loss share
+    small = farms[(farms["municipality"] == 1) & farms["segment"].isin(["smallholder_ground", "smallholder_drone"])]
+    assert (small["annual_fire_probability"] == 1).all()  # burn rate above the 25% share: chance capped
+    assert np.allclose(small["burned_area_if_fire_share"], small["burn_rate"])
     assert farms.loc[farms["segment"] != "sugarcane_ground", "value_at_risk_per_ha"].isna().all()
 
 
 def test_evaluate_uses_data_where_given_and_segment_base_otherwise():
     data = tiny_state()
     assumptions = load(ASSUMPTIONS)
-    farms = add_risk(build_population(data), data, fires_per_hotspot=3, sugarcane_fire_loss_share=0.6)
+    farms = add_risk(build_population(data), data, assumptions, "normal")
     result = evaluate(farms, assumptions, "alert")
     assert result["segment"].notna().all()
     cane = result[result["segment"] == "sugarcane_ground"]

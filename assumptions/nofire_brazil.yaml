@@ -69,16 +69,22 @@ delivery:
       status: placeholder
       note: Cost of trucking water to a remote site, where water logistics are the bottleneck.
 
-# Used only when the twin builds a farm population from IBGE and INPE data
-# (twin/population.py). There, fire probability and sugarcane value at risk
-# come from the data for each farm instead of the segment ranges below.
+# Used only when the twin builds a farm population from public data
+# (twin/population.py). There, each farm's fire risk comes from MapBiomas burn
+# rates for its municipality and land cover in the chosen fire scenario, and
+# sugarcane value at risk comes from PAM. Those replace the segment ranges below.
+#
+# Each fire scenario averages MapBiomas burn rates over a span of years.
+# 2024 is kept apart because it burned more cane than 2015-2023 combined.
+fire_scenarios:
+  normal:
+    years: 2015-2023
+    description: An ordinary dry season, the mean of 2015-2023.
+  severe:
+    years: 2024-2024
+    description: A 2024-type year, when drought and wind drove fires across the cane belt.
+
 population:
-  fires_per_hotspot:
-    low: 0.03
-    base: 0.07
-    high: 0.47
-    status: public
-    note: Calibrated with `python -m twin.calibration` so the synthetic farms burn as much farmland as MapBiomas Fogo 5.1 recorded in 2015-2024 (mean 115,000 ha a year). Base is the mean year; low is the P10 year; high is 2024, when large fires burned 74 ha of farmland per hotspot against 14-22 in other years. Depends on the segments' burned shares, so rerun if they change.
   sugarcane_fire_loss_share:
     low: 0.3
     base: 0.6

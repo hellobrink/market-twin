@@ -10,7 +10,7 @@ from shapely.geometry import box
 
 from twin.assumptions import load
 from twin.calibration import burned_share, expected_burned_ha, solve_k
-from twin.data.mapbiomas import burned_area_by_municipality, pixel_hectares
+from twin.data.mapbiomas import area_by_municipality, pixel_hectares
 
 ASSUMPTIONS = Path(__file__).resolve().parent.parent / "assumptions" / "nofire_brazil.yaml"
 
@@ -57,7 +57,7 @@ def test_burned_area_is_summed_by_municipality_and_land_cover(tmp_path):
         dst.write(classes, 1)
     boundaries = gpd.GeoDataFrame({"municipality": [1, 2]}, geometry=[box(0, 0, 0.02, 0.04), box(0.02, 0, 0.04, 0.04)], crs="EPSG:4326")
 
-    result = burned_area_by_municipality({2020: path}, boundaries, block_rows=3).set_index("municipality")
+    result = area_by_municipality({2020: path}, boundaries, block_rows=3).set_index("municipality")
     pixel = pixel_hectares(transform, 1)[0]
     assert pixel == pytest.approx(111_320 * 0.01 * 110_574 * 0.01 / 10_000, rel=1e-3)
     assert result.loc[1, "cane_ha"] == pytest.approx(3 * pixel, rel=1e-3)

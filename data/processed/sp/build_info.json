@@ -28,5 +28,9 @@
       2024
     ]
   },
+  "land_cover": {
+    "source": "MapBiomas collection 11 land cover",
+    "year": 2020
+  },
   "unmatched_hotspot_names": []
 }

@@ -75,7 +75,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--state", default="SP", choices=sorted(STATES))
     parser.add_argument("--crop-year", default="2024")
-    parser.add_argument("--hotspot-years", default="2015-2024", help="inclusive range, e.g. 2015-2024")
+    parser.add_argument("--hotspot-years", default="2015-2024", help="inclusive range for hotspots and burned area, e.g. 2015-2024")
+    parser.add_argument("--land-cover-year", default=2020, type=int, help="MapBiomas land-cover year used to turn burned area into burn rates")
     args = parser.parse_args()
 
     state = STATES[args.state]
@@ -106,10 +107,14 @@ def main() -> None:
 
     boundaries = ibge.municipal_boundaries(state["ibge_code"], cache)
     rasters = {year: mapbiomas.download_year(year, cache / "mapbiomas") for year in years}
-    burned = mapbiomas.burned_area_by_municipality(rasters, boundaries)
+    burned = mapbiomas.area_by_municipality(rasters, boundaries)
     burned.round(2).to_csv(out / "burned_area.csv", index=False)
     farmland = burned[[f"{g}_ha" for g in mapbiomas.FARMLAND_GROUPS]].sum(axis=1)
     print(f"burned farmland: {farmland.sum() / len(years):,.0f} ha a year on average")
+
+    cover = mapbiomas.area_by_municipality({args.land_cover_year: mapbiomas.land_cover_url(args.land_cover_year)}, boundaries, block_rows=2048)
+    cover.round(2).to_csv(out / "land_cover.csv", index=False)
+    print(f"land cover {args.land_cover_year}: {cover.filter(like='_ha').sum().sum() / 1e6:.1f} Mha mapped")
 
     (out / "build_info.json").write_text(json.dumps({
         "state": args.state,
@@ -118,6 +123,7 @@ def main() -> None:
         "crops": {"source": "IBGE Produção Agrícola Municipal", "year": args.crop_year, "table": 5457},
         "hotspots": {"source": "INPE BDQueimadas, reference satellite", "years": [first, last]},
         "burned_area": {"source": "MapBiomas Fogo collection 5.1, annual burned coverage", "years": [first, last]},
+        "land_cover": {"source": "MapBiomas collection 11 land cover", "year": args.land_cover_year},
         "unmatched_hotspot_names": unmatched,
     }, ensure_ascii=False, indent=2))
 

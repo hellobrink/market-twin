@@ -1,7 +1,12 @@
-"""Burned area by land-cover group and municipality, from MapBiomas Fogo collection 5.1 annual rasters.
+"""Area by land-cover group and municipality from MapBiomas rasters.
 
-Each raster covers Brazil at about 30 m. A pixel's value is the MapBiomas land-cover
-class that burned that year, or 0 where nothing burned.
+Two kinds of raster share the same class codes, about 30 m pixels over Brazil:
+
+- Fogo collection 5.1 annual burned coverage: the land-cover class that burned that year, or 0
+- Collection 11 land cover: the land-cover class of every pixel
+
+The land-cover rasters are about 1 GB each, so they are read over HTTP and only the
+state's window is fetched.
 """
 
 import urllib.request
@@ -16,6 +21,7 @@ from rasterio.windows import Window, from_bounds
 from rasterio.windows import transform as window_transform
 
 BASE = "https://storage.googleapis.com/mapbiomas-public/initiatives/brazil/fire/collection_05_1/annual_burned_coverage"
+LAND_COVER = "https://storage.googleapis.com/mapbiomas-public/initiatives/brazil/lulc/collection_11/coverage/coverage-brazil_classification_{year}.tif"
 
 # MapBiomas land-cover classes grouped for the twin. Forest plantations (9) count as
 # "other" because the synthetic population has no forestry farms.
@@ -39,6 +45,11 @@ def download_year(year: int, cache_dir: Path) -> Path:
     return path
 
 
+def land_cover_url(year: int) -> str:
+    """A GDAL path that streams one year's land-cover raster without downloading it."""
+    return "/vsicurl/" + LAND_COVER.format(year=year)
+
+
 def _group_lookup() -> np.ndarray:
     lookup = np.full(256, GROUP_NAMES.index("other"), dtype=np.int64)
     for i, name in enumerate(GROUPS):
@@ -54,13 +65,15 @@ def pixel_hectares(transform, rows: int) -> np.ndarray:
     return width_m * height_m / 10_000
 
 
-def burned_area_by_municipality(rasters: dict[int, Path], boundaries: gpd.GeoDataFrame, block_rows: int = 1024) -> pd.DataFrame:
-    """Hectares burned per municipality, year and land-cover group.
+def area_by_municipality(rasters: dict[int, Path | str], boundaries: gpd.GeoDataFrame, block_rows: int = 1024) -> pd.DataFrame:
+    """Hectares per municipality, year and land-cover group, counting every pixel with a class above 0.
 
     `boundaries` needs a `municipality` code column and polygons in EPSG:4326. The
     rasters are read in strips across the state so memory stays small.
     """
     years = sorted(rasters)
+    env = rasterio.Env(GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", GDAL_HTTP_MAX_RETRY=5, GDAL_HTTP_RETRY_DELAY=2)
+    env.__enter__()
     datasets = [rasterio.open(rasters[y]) for y in years]
     try:
         ref = datasets[0]
@@ -85,6 +98,7 @@ def burned_area_by_municipality(rasters: dict[int, Path], boundaries: gpd.GeoDat
     finally:
         for ds in datasets:
             ds.close()
+        env.__exit__(None, None, None)
 
     codes = boundaries["municipality"].to_numpy()
     frames = [
