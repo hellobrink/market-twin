@@ -15,7 +15,9 @@ MARK_COLOURS = {"Severe fire": "#c0392b", "Bad fire": "#e67e22", "Subsidy": "#2a
                 "Sales suspended": "#6c3483", "Rival arrives": "#6c3483", "Drought": "#b7950b", "Plan change": "#7f8c8d"}
 RECENT = {"3 seasons before (2024)": 3, "Last season": 1, "2 seasons before": 2, "Long ago": None}
 RANGE_RUNS = 60
-SPEEDS = {"Slow": 2.0, "Normal": 1.0, "Fast": 0.4}  # seconds between seasons
+AUTO_PACE = 1.5  # seconds between seasons in automatic play
+FIRE_ICONS = {"Severe": "🔥", "Bad": "🟠", "Quiet": "🟢", "Normal": "⚪"}
+SHOCK_ICONS = {"subsidy": "💰", "restriction": "⛔", "competitor": "⚔️", "drought": "💧", "tax_relief": "🧾"}
 
 
 @st.cache_data(show_spinner=False)
@@ -180,20 +182,25 @@ def render(market, data, assumptions, model_key, names: pd.Series, points: pd.Da
 
     key = (plan_a, plan_b, world, uncertain, model_key)
     if st.session_state.get("scenario_key") != key:  # any change to the setup starts the story again
-        st.session_state["scenario_key"] = key
-        st.session_state["scenario_shown"] = 0
+        st.session_state.update(scenario_key=key, scenario_shown=0, scenario_autoplay=False, scenario_revealed=False)
     shown = st.session_state["scenario_shown"]
 
     st.divider()
-    c1, c2, c3 = st.columns([1, 1, 2], vertical_alignment="center")
-    label = "▶ Play" if shown == 0 else ("▶ Resume" if shown < n else "↺ Play again")
-    play_clicked = c1.button(label, type="primary", width="stretch")
-    skip_clicked = c2.button("Skip to the end", width="stretch")
-    speed = c3.select_slider("Speed", options=list(SPEEDS), value="Normal")
-    if skip_clicked:
-        shown = n
-    if not (play_clicked or shown):
-        st.info(f"Set the world and your plan, then press **Play** to watch {years[0]}-{years[-1]} unfold season by season.")
+    c1, c2, c3 = st.columns([1.4, 1, 1], vertical_alignment="center")
+    mode = c1.radio("How to play", ["Step by step", "Automatic"], horizontal=True,
+                    help="Step by step pauses after each season until you click Next. Automatic plays the seasons on its own.")
+    if shown < n:
+        if mode == "Step by step":
+            c2.button("▶ Start" if shown == 0 else f"Next season ▶ ({years[shown]})", type="primary", width="stretch",
+                      on_click=_advance, args=(n,), key="scenario-next-top")
+        else:
+            c2.button("▶ Play" if shown == 0 else "▶ Play the rest", type="primary", width="stretch", on_click=_autoplay)
+    if shown:
+        c3.button("↺ Restart", width="stretch", on_click=_restart)
+    autoplay = st.session_state["scenario_autoplay"]
+    if not (shown or autoplay):
+        st.info(f"Set the world and your plan, then press **{'Start' if mode == 'Step by step' else 'Play'}** "
+                f"to watch {years[0]}-{years[-1]} unfold season by season.")
         return
 
     with st.spinner("Setting up the seasons"):
@@ -201,25 +208,23 @@ def render(market, data, assumptions, model_key, names: pd.Series, points: pd.Da
         story_b = _story(market, fire_rates, assumptions, model_key, plan_b, world, uncertain) if plan_b else None
         band = _range(market, fire_rates, assumptions, model_key, plan_a, world, preset)
 
-    banner = st.empty()
-    metrics = st.empty()
-    left, right = st.columns(2)
-    with left:
+    strip = st.empty()
+    timeline_col, panel_col = st.columns([1, 1.15], gap="large")
+    with timeline_col:
+        st.markdown("**Timeline**")
+        cards = [st.empty() for _ in range(n)]
+        bottom = st.empty()
+    with panel_col:
+        metrics = st.empty()
         st.markdown(f"**Farms using NoFire.** Shaded: P10 to P90 of {RANGE_RUNS} runs " +
                     ("of other worlds at the same difficulty" if preset else "of this world with uncertain inputs drawn"))
         users_chart = st.empty()
-    with right:
         st.markdown("**Revenue per season**, R$ millions")
         revenue_chart = st.empty()
-    left, right = st.columns([1.2, 1])
-    with left:
-        st.markdown("**What happened so far**, latest first")
-        log_box = st.empty()
-    with right:
         st.markdown("**Where treated farms held fires** so far")
         map_box = st.empty()
-        st.markdown("**Season by season**")
-        table_box = st.empty()
+    st.markdown("**Season by season**")
+    table_box = st.empty()
     st.caption("Fire seasons rest on MapBiomas data. Subsidy, sales suspension, rival, drought and tax relief have illustrative "
                "sizes set in the assumptions file, and most behavioural inputs are still placeholders.")
 
@@ -228,20 +233,35 @@ def render(market, data, assumptions, model_key, names: pd.Series, points: pd.Da
     x_domain = [str(y) for y in years]
     limits = {c: 1.05 * max(all_lines[c].max(), band[f"{c}_p90"].max(), 1) for c in ("adopters", "revenue")}
     markers = _markers(story_a, plan_a)
+    seasons = story_a.seasons
+    b_index = story_b.seasons.set_index("year") if story_b else None
+    changed = [i > 0 and plan_a.seasons[i] != plan_a.seasons[i - 1] for i in range(n)]
 
-    def draw(t: int, alerts: bool = False):
-        entry = story_a.log[t - 1]
-        sa = story_a.seasons.iloc[:t]
+    def draw_strip(t: int):
+        with strip.container():
+            cols = st.columns(n)
+            for i, col in enumerate(cols):
+                if i < t:
+                    row = seasons.iloc[i]
+                    icons = _fire_icon(row["fire_label"]) + "".join(SHOCK_ICONS[x] for x in filter(None, row["shocks"].split(", ")))
+                    icons += "🔧" if changed[i] else ""
+                    col.markdown(f"<div style='text-align:center'><b>{years[i]}</b><br>{icons}<br>"
+                                 f"<span style='font-size:0.8em'>{row['adopters']:,} users</span></div>", unsafe_allow_html=True)
+                else:
+                    col.markdown(f"<div style='text-align:center;color:#aaa'>{years[i]}<br>·</div>", unsafe_allow_html=True)
+            st.caption("🔥 severe fire · 🟠 bad fire · ⚪ normal · 🟢 quiet · 💰 subsidy · ⛔ sales suspended · ⚔️ rival · "
+                       "💧 drought · 🧾 tax relief · 🔧 plan change")
+
+    def draw_card(i: int):
+        entry, row = story_a.log[i], seasons.iloc[i]
+        label = row["fire_label"]
+        box = (cards[i].error if label.startswith("Severe") else cards[i].warning if label.startswith("Bad")
+               else cards[i].success if label.startswith("Quiet") else cards[i].info)
+        box(_card_text(entry, row, names, b_index, money_m))
+
+    def draw_panel(t: int):
+        sa = seasons.iloc[:t]
         sb = story_b.seasons.iloc[:t] if story_b else None
-        box = st.error if entry["fire"].startswith("Severe") else st.warning if entry["fire"].startswith("Bad") else st.info
-        with banner.container():
-            box(_entry_text(entry, names, sb.set_index("year") if sb is not None else None, headline=True))
-        if alerts:
-            for note in entry["notes"]:
-                st.toast(f"{entry['year']}: {note}")
-            if entry["fire"].startswith("Severe"):
-                st.toast(f"{entry['year']}: severe fire season", icon="🔥")
-
         spend = sa["farmer_spend"].sum()
         farmer_return = (sa["avoided_loss"].sum() + sa["water_value"].sum() - spend) / spend if spend else None
 
@@ -251,23 +271,18 @@ def render(market, data, assumptions, model_key, names: pd.Series, points: pd.Da
             return f"{fmt(agg(sa[column]) - agg(sb[column]))} vs alternative"
 
         with metrics.container():
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric(f"Users in {entry['year']}", f"{sa['adopters'].iloc[-1]:,}", delta("adopters", lambda c: c.iloc[-1], lambda d: f"{d:+,.0f}"))
+            c1, c2 = st.columns(2)
+            c3, c4 = st.columns(2)
+            c1.metric(f"Users in {years[t - 1]}", f"{sa['adopters'].iloc[-1]:,}", delta("adopters", lambda c: c.iloc[-1], lambda d: f"{d:+,.0f}"))
             c2.metric("Revenue so far", money_m(sa["revenue"].sum()),
                       delta("revenue", lambda c: c.sum(), lambda d: ("+" if d >= 0 else "-") + money_m(abs(d))))
-            c3.metric("Fires held so far", f"{sa['fires_held'].sum():,}", delta("fires_held", lambda c: c.sum(), lambda d: f"{d:+,.0f}"))
-            c4.metric("Users' return so far", "n/a" if farmer_return is None else f"{farmer_return:.0%}",
-                      "avoided losses and water, on what they spent", delta_color="off")
-
-        lines = all_lines[all_lines["year"] <= entry["year"]]
-        revealed = markers[markers["year"].astype(int) <= entry["year"]]
+            c3.metric("Fires held", f"{sa['fires_held'].sum():,}", delta("fires_held", lambda c: c.sum(), lambda d: f"{d:+,.0f}"))
+            c4.metric("Users' return", "n/a" if farmer_return is None else f"{farmer_return:.0%}", "so far", delta_color="off")
+        lines = all_lines[all_lines["year"] <= years[t - 1]]
+        revealed = markers[markers["year"].astype(int) <= years[t - 1]]
         users_chart.altair_chart(_timeline(lines, band, revealed, "adopters", "Farms", x_domain, limits["adopters"]), width="stretch")
         revenue_chart.altair_chart(_timeline(lines, band, revealed, "revenue", "R$ millions", x_domain, limits["revenue"], scale=1e6),
                                    width="stretch")
-        with log_box.container(height=460):
-            b_index = story_b.seasons.set_index("year") if story_b else None
-            for past in reversed(story_a.log[:t]):
-                st.markdown(_entry_text(past, names, b_index))
         with map_box.container():
             bubble_map(pd.Series(story_a.saves_by_season[:t].sum(axis=0), index=market.municipalities), points, names, (192, 57, 43))
         table = sa[["year", "fire_label", "farmer_price", "adopters", "new", "stopped", "fires_held", "revenue"]].rename(columns={
@@ -278,35 +293,79 @@ def render(market, data, assumptions, model_key, names: pd.Series, points: pd.Da
             "Farmer pays": st.column_config.NumberColumn(format="R$%d"),
             "Revenue": st.column_config.NumberColumn(format="localized")})
 
-    if play_clicked:
-        first = shown + 1 if 0 < shown < n else 1  # resume where an interrupted play stopped, otherwise start over
-        for t in range(first, n + 1):
-            draw(t, alerts=True)
+    def announce(i: int):
+        entry = story_a.log[i]
+        for note in entry["notes"]:
+            st.toast(f"{entry['year']}: {note}")
+        if entry["fire"].startswith("Severe"):
+            st.toast(f"{entry['year']}: severe fire season", icon="🔥")
+
+    if autoplay:
+        for i in range(shown):
+            draw_card(i)
+        for t in range(shown + 1, n + 1):
+            draw_strip(t)
+            draw_card(t - 1)
+            draw_panel(t)
+            announce(t - 1)
             st.session_state["scenario_shown"] = t
             if t < n:
-                time.sleep(SPEEDS[speed])
-        st.rerun()  # redraw once more so the button offers "Play again"
-    else:
-        st.session_state["scenario_shown"] = shown
-        draw(shown)
+                time.sleep(AUTO_PACE)
+        st.session_state["scenario_autoplay"] = False
+        st.rerun()  # redraw once more so the controls match the finished story
+
+    draw_strip(shown)
+    for i in range(shown):
+        draw_card(i)
+    draw_panel(shown)
+    if st.session_state.pop("scenario_revealed", False):
+        announce(shown - 1)
+    if shown < n and mode == "Step by step":
+        bottom.button(f"Next season ▶ ({years[shown]})", type="primary", on_click=_advance, args=(n,), key="scenario-next-bottom")
+    elif shown == n:
+        bottom.success("End of the story. Press **Restart** to play it again, or change the plan or the world.")
 
 
-def _entry_text(entry: dict, names: pd.Series, b_seasons: pd.DataFrame | None, headline: bool = False) -> str:
-    """One season of the story as markdown: a heading line, then what happened."""
-    head = f"**{entry['year']} · {entry['fire']}**"
-    lines = [f"- {note}" for note in entry["notes"]]
+def _advance(n: int):
+    st.session_state["scenario_shown"] = min(n, st.session_state["scenario_shown"] + 1)
+    st.session_state["scenario_revealed"] = True
+
+
+def _autoplay():
+    st.session_state["scenario_autoplay"] = True
+
+
+def _restart():
+    st.session_state.update(scenario_shown=0, scenario_autoplay=False, scenario_revealed=False)
+
+
+def _fire_icon(label: str) -> str:
+    return FIRE_ICONS[label.split()[0]]
+
+
+def _shock_of(note: str) -> str | None:
+    starts = {"State prevention subsidy": "subsidy", "Regulator suspends": "restriction", "A cheaper rival": "competitor",
+              "Drought": "drought", "Product qualifies": "tax_relief"}
+    return next((shock for prefix, shock in starts.items() if note.startswith(prefix)), None)
+
+
+def _card_text(entry: dict, row: pd.Series, names: pd.Series, b_seasons: pd.DataFrame | None, money_m) -> str:
+    """One season's timeline card: what happened, the fires held, users and revenue."""
+    lines = [f"**{entry['year']} · {_fire_icon(row['fire_label'])} {entry['fire']}**", ""]
+    for note in entry["notes"]:
+        icon = SHOCK_ICONS.get(_shock_of(note), "🔧" if note.startswith("Plan change") else "•")
+        lines.append(f"- {icon} {note}")
     if entry["fires_held"]:
         where = ", ".join(f"{names.get(code, code)} {count}" for code, count in entry["saves"])
-        lines.append(f"- {entry['fires_held']} treated farm{'s' if entry['fires_held'] > 1 else ''} held a fire line" + (f": {where}" if where else ""))
+        lines.append(f"- 🛡️ {entry['fires_held']} treated farm{'s' if entry['fires_held'] > 1 else ''} held a fire line"
+                     + (f": {where}" if where else ""))
     change = f"{entry['new']:+d} new, {-entry['stopped'] if entry['stopped'] else 0} stopped"
     if entry["lost_to_rival"]:
         change += f", {entry['lost_to_rival']} lost to the rival"
-    lines.append(f"- Users: {entry['adopters']:,} ({change})")
+    lines.append(f"- 👥 {entry['adopters']:,} users ({change}) · revenue {money_m(row['revenue'])}")
     if b_seasons is not None:
         lines.append(f"- Alternative plan: {b_seasons.loc[entry['year'], 'adopters']:,} users")
-    if headline:
-        head = f"### {entry['year']} · {entry['fire']}"
-    return head + "\n\n" + "\n".join(lines)
+    return "\n".join(lines)
 
 @st.cache_resource
 def _fire_rates(_market, _data):

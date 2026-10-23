@@ -39,13 +39,23 @@ def test_app_runs_and_reruns_after_moving_the_price():
     assert any("Product price" in c.value for c in at.sidebar.caption)  # the caption lists what is fixed
 
 
-def test_scenario_plays_every_season():
+def test_scenario_steps_through_seasons_then_plays_the_rest():
     at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=180)
     at.run()
-    assert at.session_state["scenario_shown"] == 0  # waits for Play
-    speed = next(s for s in at.select_slider if s.label == "Speed")
-    speed.set_value("Fast").run()
-    next(b for b in at.button if b.label == "▶ Play").click().run()
-    assert not at.exception
+    assert at.session_state["scenario_shown"] == 0  # waits for Start
+
+    def press(label_start):
+        next(b for b in at.button if b.label.startswith(label_start)).click().run()
+        assert not at.exception
+
+    press("▶ Start")
+    assert at.session_state["scenario_shown"] == 1
+    press("Next season")
+    press("Next season")
+    assert at.session_state["scenario_shown"] == 3
+    next(r for r in at.radio if r.label == "How to play").set_value("Automatic").run()
+    press("▶ Play the rest")
     assert at.session_state["scenario_shown"] == 10
-    assert next(b for b in at.button if b.label.endswith("Play again"))
+    assert any("End of the story" in s.value for s in at.success)
+    press("↺ Restart")
+    assert at.session_state["scenario_shown"] == 0
