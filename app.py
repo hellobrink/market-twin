@@ -320,6 +320,8 @@ with assumptions_tab:
         add("adoption", name, r)
     for key, r in assumptions.adoption.coop_member_share.items():
         add("adoption: cooperative share", key, r)
+    for name, r in assumptions.scenario.rates.items():
+        add("scenario mode", name, r)
     table = pd.DataFrame(rows)
     counts = table["status"].value_counts()
     st.write(" · ".join(f"**{counts.get(s, 0)}** {s}" for s in ["placeholder", "pilot", "public", "interview", "scenario"] if counts.get(s, 0)))

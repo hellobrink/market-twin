@@ -1,194 +1,284 @@
-# Market twin
+# Market twin: NoFire in São Paulo
 
-A prototype market digital twin for Brink. The first case is the NoFire Stop the Spread pilot in Brazil. The design is in the [Market Digital Twin: Prototype Spec](https://claude.ai/artifact/6hn6GXpxTLsz9Q56Yx15y6).
+A prototype "digital twin" of a market, built by Brink to help venture teams test pricing, sales and timing decisions before they spend money in the field. The first case is NoFire, a fire-retardant gel from the Frontier Tech Hub [Stop the Spread](https://www.frontiertechhub.org/pilot-portfolio/stop-the-spread) pilot, sold to farms in the Brazilian state of São Paulo.
 
-This first piece is the per-farm ROI model. For each type of farm, it estimates:
+**Live app:** _link to be added once deployed on Streamlit Community Cloud_
 
-- what preventive treatment costs per dry season
-- the fire loss and water cost it avoids
-- how confident we can be in the result, given the ranges in the assumptions file
+**Status:** working prototype. The farm population, fire history and crop values come from public data. Most numbers about how farmers behave are still placeholders that need replacing with NoFire's own interview and sales data. Treat the outputs as a way to explore assumptions, and don't quote them as forecasts.
 
-## Setup
+## Contents
 
-```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-```
+1. [What it is](#what-it-is)
+2. [How it's designed to be used](#how-its-designed-to-be-used)
+3. [The app, tab by tab](#the-app-tab-by-tab)
+4. [How the model works](#how-the-model-works)
+5. [Data sources](#data-sources)
+6. [Assumptions and how to change them](#assumptions-and-how-to-change-them)
+7. [What it shows so far](#what-it-shows-so-far)
+8. [What's missing and needs doing](#whats-missing-and-needs-doing)
+9. [Reusing it for other Brink twins](#reusing-it-for-other-brink-twins)
+10. [Running it yourself](#running-it-yourself)
+11. [Project layout](#project-layout)
 
-## Run
+## What it is
 
-```bash
-.venv/bin/python -m twin.report
-.venv/bin/python -m twin.report --strategy alert
-.venv/bin/pytest
-```
+The Stop the Spread pilot found that farmers valued NoFire's gel, especially for the water it saves, but hesitated to pay because nobody could show them a clear return on investment. It also found that ground application beats drones wherever farms already own water trucks. Those findings raise questions a coach would want to explore with the team: which farms will pay, at what price, how fast word spreads, and what a bad fire year or a new rival does to the business.
 
-## How it works
+The twin answers those questions with a simulated version of the market. It builds one synthetic farm for each of the 181,072 crop and livestock farms in São Paulo's 2017 agricultural census. Each farm gets a size, a crop, a truck or not, a fire risk based on what has really burned in its municipality, and a value at risk. The model then works out whether NoFire pays for itself on each farm, and simulates which farms buy, season by season, as fires, prices, neighbours and other events play out.
 
-[assumptions/nofire_brazil.yaml](assumptions/nofire_brazil.yaml) holds every input as a low, base and high value. Each input also has a `status` that says where the number came from. Most are still placeholders, so replace them as NoFire's interview data and the public datasets come in, and update `status` when you do.
+It runs as a web app with 5 tabs. The first, **Scenario**, lets a team set a plan, choose a world of events, and watch the seasons unfold one at a time.
 
-The file also lists treatment strategies, which describe how a farm decides when to treat. `scheduled` means treating on high-risk days all season, and `alert` means treating only when a fire alert comes in nearby. The gel lasts about 24 hours, so the strategy changes two things: how many treatments a farm pays for, and how many fires arrive while a treatment is still active. Each segment gives its own `applications_per_season` and `timing_coverage` for every strategy. A strategy can then reflect, for example, how long a drone operator takes to reach that kind of farm.
+## How it's designed to be used
 
-[twin/roi.py](twin/roi.py) contains the model, and its docstring sets out the equations. For each farm segment, the report puts the strategies side by side and prints:
+The twin is a coaching tool. A session works best with a coach driving the app and the venture team discussing what they see. A typical 60 to 90 minute session runs like this:
 
-- a base case that uses the middle value of every range
-- the spread of ROI across 10,000 Monte Carlo runs, and the share of runs that clear the farmer's ROI hurdle
-- the 5 inputs that move ROI most, which shows the team what to ask farmers about next
-- the break-even product price per hectare per application
+1. **Open on the Assumptions tab.** It lists every number in the model and whether it comes from the pilot, public data or a placeholder. Agree with the team which placeholders matter most and what they believe instead. A coach can change the main ones from the sidebar during the session.
+2. **Play a scenario step by step.** On the Scenario tab, pick a world (start with "Replay 2015-2024" or "Normal") and set the team's current plan. Before each **Next season** click, ask the team what they expect to happen and whether they'd change anything.
+3. **Compare 2 plans with the same luck.** Tick "Compare with an alternative plan" and enter a different price, a cooperative partnership or more sales effort. Both plans see exactly the same fires and the same random draws, so any gap between the lines comes from the decision alone.
+4. **Stress-test the plan.** Switch to the "Hard" world and play again, or use "Custom" to place a severe fire in year 2 and a rival in year 4. Ask how the business would survive and what the team would do differently.
+5. **Step back to the range.** The Adoption over time tab runs hundreds of simulations to show the spread of outcomes and which assumptions drive it most. That tells the team which field test or interview question would reduce their uncertainty fastest.
+6. **Close on what to find out.** The point of the session is a short list of facts the team needs to check, such as what their product really costs per hectare or how many target farms belong to a cooperative.
 
-## Known simplifications
+Some cautions for sessions:
 
-- The model looks at one season at a time. It doesn't calculate multi-year payback or apply discounting.
-- It assumes a treated strip protects the whole area that would otherwise burn.
-- Inputs are sampled independently. In reality, fire probability and burned area rise together in a drought year.
-- Water savings only count where the farm already spends water on fire prevention.
+- One storyline is one possible future. The shaded band behind each chart shows where most runs land, and it's worth pointing to it whenever a single story looks dramatic.
+- Shocks such as subsidies, sales suspensions and rivals have illustrative sizes. They're there to prompt discussion about resilience, not to predict policy.
+- Numbers marked "placeholder" can move results a lot. The app shows which ones on the Assumptions tab, and the Farm ROI tab shows how much each one swings a typical farm's return.
 
-## Farm population (step 2)
+## The app, tab by tab
 
-The twin builds one synthetic farm for every crop and livestock farm in the 2017 census for São Paulo (181,072 farms). It then runs the ROI model on each farm in the modelled market, under each fire scenario and treatment strategy.
-
-```bash
-.venv/bin/python -m twin.population_report
-.venv/bin/python -m twin.population_report --scenario severe --strategy alert --top 15
-```
-
-The processed data in `data/processed/sp/` is committed, so the report runs offline. To download it again, or to pick different years:
-
-```bash
-.venv/bin/python -m twin.data.build --state SP --crop-year 2024 --hotspot-years 2015-2024 --land-cover-year 2020
-```
-
-The build caches about 760 MB of MapBiomas burned-area rasters in `data/raw/`, which is not committed. It streams only the São Paulo window of the land-cover raster.
-
-| Data | Source | Used for |
+| Tab | What it shows | Use it to |
 | --- | --- | --- |
-| Farm counts and area by municipality, activity and size group | IBGE Censo Agropecuário 2017, table 6754 | One synthetic farm per establishment, with an area drawn to match the census |
-| Farms with trucks by municipality and size group | Censo Agropecuário 2017, table 6877 | Whether a small farm applies from the ground or needs a drone service |
-| Sugarcane planted area and production value | IBGE PAM 2024, table 5457 | Which large crop farms grow cane, and cane value at risk per hectare |
-| Burned area by land cover, about 30 m | MapBiomas Fogo collection 5.1, 2015 to 2024 | Each farm's fire risk |
-| Land cover, about 30 m | MapBiomas collection 11, 2020 | Hectares of cane, pasture and other crops per municipality, to turn burned area into burn rates |
-| Fire hotspots, reference satellite | INPE BDQueimadas, 2015 to 2024 | A cross-check on where MapBiomas says fires happen |
+| Scenario | One storyline, season by season, under a plan you set and a world of events you choose | Rehearse decisions and talk through what could happen |
+| Market today | Which farms would buy in a normal, severe or long-run fire year, by segment, with a map | See where the market is and how big it could be |
+| Adoption over time | Users and revenue each year across many simulations, with the range and the main drivers | Understand uncertainty and what to test next |
+| Farm ROI | One typical farm per segment and which inputs swing its return most | Explain the economics of a single sale |
+| Assumptions | Every input with its range, source status and note | See what's evidence and what's a guess |
 
-[twin/population.py](twin/population.py) explains each step. Farms are assigned to segments by these rules:
+The sidebar holds model settings that apply across tabs: price, treatment strategy, containment rate, the return a farmer needs before buying, and the adoption settings. Moving a setting fixes it at that value. Anything left alone keeps its full range of uncertainty in the simulations, and the sidebar lists what's fixed. On the Scenario tab, price and strategy come from the plan table instead.
 
-- Crop farms of 5 to 100 ha go to `smallholder_ground` if they have a truck, otherwise to `smallholder_drone`.
-- Temporary-crop farms of 100 ha or more go to `sugarcane_ground`, with a probability equal to sugarcane's share of the municipality's crop area.
-- Livestock farms of 500 ha or more go to `remote_ranch_drone`.
-- Every other farm sits outside the modelled market.
+### The Scenario tab in more detail
 
-IBGE suppresses area in census cells with few farms. The twin estimates those areas from each municipality's published total, so total synthetic farmland comes within 2% of the census.
-
-### Fire risk
-
-A farm's expected burned share each year is its municipality's burn rate for its land cover: cane for sugarcane farms, pasture for ranches, and other crops for smallholders. The burn rate is MapBiomas burned hectares divided by MapBiomas hectares of that land cover. Where a municipality has little of a land cover, the rate leans towards the state rate.
-
-The ROI model splits that expected share into a chance of fire and a share burned when fire comes. The share is the segment's base value, so only the chance changes with the data.
-
-The `fire_scenarios` section of the assumptions file sets which years the burn rates come from:
-
-| Scenario | Years | Typical cane farm, burned a year |
-| --- | --- | --- |
-| `normal` | Mean of 2015 to 2023 | 0.40% |
-| `severe` | 2024 | 3.86% |
-| `long_run` | 90% normal, 10% severe | 0.86% |
-
-2024 sits apart because it burned 458,000 ha of cane, more than 2015 to 2023 combined. At R$700/ha with alert treatment, 3 cane farms clear the ROI hurdle in a normal year, 2,663 in a severe year and 268 over the long run. At this price the product pays for itself in bad years, which points the NoFire team towards pricing it like insurance.
-
-INPE hotspots stay in as a cross-check. They rank municipalities much as MapBiomas does, with rank correlations of 0.66 for normal years and 0.58 for 2024.
-
-### Why the hotspot formula was dropped
-
-The first version set fire probability to 1 - exp(-fires_per_hotspot x hotspot rate x farm area). [twin/calibration.py](twin/calibration.py) fits `fires_per_hotspot` against MapBiomas burned farmland, and it comes out at 0.07 for the mean year, against a placeholder of 3:
-
-```bash
-.venv/bin/python -m twin.calibration
-```
-
-The fit showed that the formula makes burning per hectare grow with farm size. Calibrated, farms over 2,500 ha held 32% of farmland but got 90% of predicted burning, at 2.2% a year. Farms of 100 to 500 ha got 0.06%. Burn rates from MapBiomas avoid that, because a farm's expected burned area scales with its area alone.
-
-### Simplifications
-
-- The census is from 2017, and the next one is not out yet.
-- Land cover is from 2020 for every year, so it misses cane expanding or shrinking over the decade.
-- Smallholders use the burn rate for crops other than cane, even where they are surrounded by cane.
-- Only sugarcane farms get value at risk from data. The other segments use the segment's base value.
-- Every input except area, fire risk and cane value uses the segment's base value, so the population report has no Monte Carlo ranges yet.
-
-## Adoption over time (step 3)
-
-```bash
-.venv/bin/python -m twin.adoption_report
-.venv/bin/python -m twin.adoption_report --price 300 --runs 500
-```
-
-[twin/adoption.py](twin/adoption.py) follows every farm in the modelled market through 10 seasons from 2027, 200 times. Each run draws every uncertain input from its range, gives each farm its own ROI hurdle, and decides which farms belong to a cooperative. Then, each season:
-
-1. A farm judges its ROI on its perceived fire risk. That sits between its municipality's normal-year and severe-year burn rates: it jumps to the severe rate after a severe season and fades with `risk_memory_half_life`.
-2. Farms whose perceived ROI clears their hurdle adopt with the Bass chance 1 - (1 - p) x (1 - q x peer share). A cooperative member's peers are the other members in its municipality. A non-member feels the whole municipality, weighted by `non_member_peer_weight`.
-3. Adopters whose perceived ROI falls below their hurdle may stop.
-4. The season turns out severe with `severe_year_probability`, which is 10% by default because 1 of the 10 seasons from 2015 to 2024 was.
-
-The report shows the P10, median and P90 of adopters and revenue each year. It also shows how many adopters cooperative and neighbour effects add, which drawn inputs move the result most, and where adopters cluster. `--price` fixes the product price, so pricing options can be compared.
-
-With the current assumptions and alert treatment:
-
-| Price per ha per application | Median adopters, 2036 | P90 adopters, 2036 | Median revenue, 2036 | Added by peer effects |
-| --- | --- | --- | --- | --- |
-| Drawn from R$300 to R$1,500 (base R$700) | 86 | 406 | R$5.1m | 86 against 64 without |
-| R$300 | 274 | 956 | R$4.7m | 274 against 180 without |
-
-Nearly all adopters are sugarcane farms around Pitangueiras, Olímpia, Jaboticabal and Sertãozinho. The biggest single driver is whether a severe season happens during the run. Price, containment rate and how long farmers remember a bad year come next. At R$300, about 3 times as many farms adopt, but revenue stays about the same, so a lower price widens reach without growing the business.
-
-Cooperative membership shares, the Bass rates, risk memory and churn are all placeholders. Membership by municipality and farm size can come from Censo Agropecuário table 6846, but IBGE was unreachable when this was built.
-
-## Coaching app (step 4)
-
-```bash
-.venv/bin/streamlit run app.py
-```
-
-This opens the app at http://localhost:8501. The sidebar holds the levers: treatment strategy, price, containment rate and the farmer's ROI hurdle, plus an "Adoption over time" panel with the chance of a severe season, how long farmers remember one, the Bass rates, cooperative membership for cane farms and the number of runs. A lever moved away from its default is fixed at that value, and every other input keeps its range in the Monte Carlo runs. The sidebar lists what is fixed.
-
-The app has 4 tabs:
-
-- **Market today**: who would buy under a chosen fire scenario, by segment, with a map of buyers by municipality.
-- **Adoption over time**: users and revenue each year as a median with a P10 to P90 band, how many users cooperatives and neighbours add, which inputs move the outcome most, and a map of where users are by the final year.
-- **Farm ROI**: one typical farm per segment, with the inputs that swing its ROI most.
-- **Assumptions**: every input with its range, status and note, filterable by status, so a session can see which numbers are still guesses.
-
-[twin/overrides.py](twin/overrides.py) applies the levers, and `--price` in the adoption report uses it too. A 200-run adoption simulation takes about 5 seconds, and results are cached for each combination of levers. The app needs `data/processed/sp/municipality_points.csv` for its maps, which the build step writes.
-
-To share the app beyond your laptop, push the repo and deploy `app.py` on Streamlit Community Cloud.
-
-## Scenario mode (first tab of the app)
-
-The Scenario tab plays one storyline season by season. [twin/scenario.py](twin/scenario.py) runs it, and [twin/scenario_view.py](twin/scenario_view.py) draws it.
-
-**Your plan** is a table with a row per season: price, treatment strategy, sales effort and whether a cooperative partnership runs. You also choose which segments to sell to. Edit any row to change the plan from that season, for example a lower launch price or a partnership from year 3.
+You set 2 things.
 
 **The world** comes in 5 modes:
 
 | Mode | What happens |
 | --- | --- |
-| Easy, normal, hard | Each season draws a fire (normal or severe) and shocks at the preset's chances. "New random world" draws another. |
-| Replay 2015-2024 | The real fire seasons, using each year's MapBiomas burn rates, with no shocks |
-| Custom | You place fires and shocks season by season |
+| Easy, Normal, Hard | Each season has a chance of a severe fire and of shocks. Hard has more of both. "New random world" draws a different sequence. |
+| Replay 2015-2024 | The real fire seasons of the last decade, using each year's measured burn rates. No shocks. |
+| Custom | You place each fire and shock yourself. |
 
-The shocks are a state prevention subsidy, a season's sales suspension, a cheaper rival, a drought and tax relief on agricultural inputs. Their sizes and the presets' chances sit in the `scenario` section of the assumptions file. They are illustrative; only the fire seasons rest on data. You also set how long ago the last severe season was, because recent fires make farmers feel more at risk.
+The shocks are a state prevention subsidy, a season with sales suspended by a regulator, a cheaper rival, a drought and tax relief on agricultural inputs. You also set how long ago the last severe fire season was, because a recent bad year makes farmers feel more at risk.
 
-The storyline adds 3 things to the adoption model:
+**Your plan** is a table with a row per season: price per hectare per treatment, treatment strategy, sales effort and whether a cooperative partnership runs. You also choose which farm segments to sell to. Edit any row to change the plan from that season.
 
-- Each adopter's farm meets a fire or doesn't. A treated farm that holds its fire line counts as `testimonial_weight` extra adopters for its neighbours, fading over `testimonial_memory` seasons. That mirrors the pilot's sugarcane farmer, who became a customer and advocate after seeing a fire contained.
-- Perceived fire risk follows the real seasons. It rises to at least what the latest season burned, then fades.
-- Shocks change what farmers pay, whether NoFire can sell, and churn.
+Then choose **Step by step**, which pauses after each season until you click **Next season**, or **Automatic**, which plays the seasons on its own. A strip of years fills in with icons for each season's fire and events, each season adds a coloured card to the timeline, and the metrics, charts and map update beside it. **Restart** goes back to the start.
 
-Choose how to play. **Step by step** reveals one season and then waits for **Next season**, so a team can discuss each year before moving on. **Automatic** plays the seasons on its own, about 1.5 seconds apart. You can switch modes mid-story: pick Automatic and press **Play the rest**. As the story plays, a strip of years across the top fills in with icons for each season's fire, shocks and plan changes. Each season adds a coloured timeline card, so the whole story stays readable. Beside the timeline, the metrics, charts and map update with every season, and pop-up alerts announce shocks and severe fires. **Restart** goes back to the start, and changing the world or the plan resets the story too.
+## How the model works
 
-In the 2015-2024 replay with alert treatment, a constant R$700 price ends with 8 users. R$400 ends with 35 users and about R$3m more revenue over the decade.
+The model has 5 layers. Each builds on the one before.
 
-## Next
+```
+Public data  ->  Synthetic farms  ->  Fire risk  ->  Farm ROI  ->  Adoption over time  ->  Scenarios
+(IBGE, INPE,     (one per census      (MapBiomas      (cost vs       (Bass diffusion,       (plans, worlds,
+ MapBiomas)       farm, 4 segments)    burn rates)     avoided loss)   cooperatives)          storylines)
+```
 
-- Turn-based play: pause after each season so the team can respond before the next.
-- Fill cooperative membership from Censo Agropecuário table 6846. IBGE's API refused connections when this was built, and its backup API sits behind a bot check.
-- Replace the placeholders with NoFire's interview and sales data, starting with product price, treatments per season, the ROI hurdle and cooperative membership.
-- Add pricing models beyond a price per hectare, such as a season subscription or a payment linked to insurance.
+### 1. Synthetic farms
+
+Each census cell (municipality x activity x farm-size band) becomes that many farms, with areas drawn to match the census average for the cell. Where IBGE hides a cell's area for confidentiality, the twin estimates it from the municipality's published total, so total farmland lands within 2% of the census. Each farm gets a truck or not, drawn from the share of farms that size in its municipality that own one.
+
+Farms fall into 4 segments:
+
+| Segment | Rule | Delivery |
+| --- | --- | --- |
+| Sugarcane, ground | Temporary-crop farms of 100 ha or more, with a chance equal to cane's share of the municipality's crop area | Own truck |
+| Smallholder, own truck | Crop farms of 5 to 100 ha with a truck | Own truck |
+| Smallholder, drone | Crop farms of 5 to 100 ha without a truck | Drone service |
+| Large ranch, drone | Livestock farms of 500 ha or more | Drone service |
+
+That puts 54,189 farms in the modelled market. The rest are under 5 ha, large non-cane crop farms or smaller livestock farms.
+
+### 2. Fire risk
+
+A farm's expected burned share each year is its municipality's burn rate for its land cover: cane for sugarcane farms, pasture for ranches, other crops for smallholders. The burn rate is MapBiomas burned hectares divided by MapBiomas hectares of that land cover. Where a municipality has little of a land cover, the rate leans towards the state average.
+
+| Fire scenario | Years | Typical cane farm, burned a year |
+| --- | --- | --- |
+| Normal | Mean of 2015 to 2023 | 0.40% |
+| Severe | 2024 | 3.86% |
+| Long run | 90% normal, 10% severe | 0.86% |
+
+2024 sits apart because it burned 458,000 ha of cane, more than 2015 to 2023 combined. INPE satellite hotspots act as a cross-check: they rank municipalities much as MapBiomas does, with rank correlations of 0.66 for normal years and 0.58 for 2024.
+
+An earlier version used a hotspot formula for fire risk. Calibrating it against MapBiomas showed that it piled almost all the burning onto the very largest farms, so it was dropped. [twin/calibration.py](twin/calibration.py) keeps the record.
+
+### 3. Farm ROI
+
+For each farm and season:
+
+```
+cost          = treatments x treated hectares x (product price + application cost)
+avoided loss  = expected burned hectares x containment rate x share of fires met by a treatment x value at risk per ha
+water value   = water the farm already spends on prevention x share saved by the gel x water cost
+ROI           = (avoided loss + water value - cost) / cost
+```
+
+Treatment strategy matters a lot. The gel lasts about 24 hours, so "scheduled" farms treat on every high-risk day, while "alert" farms treat only when a fire is reported nearby. Alert treatment means fewer treatments, and a better chance that the gel is fresh when a fire arrives.
+
+### 4. Adoption over time
+
+Each season, a farm considers buying only if its ROI, judged on its perceived fire risk, clears its own hurdle. Perceived risk jumps after a severe season and then fades. Farms that would profit adopt with the Bass diffusion chance:
+
+```
+chance = 1 - (1 - outside push) x (1 - imitation x share of peers who have adopted)
+```
+
+A cooperative member's peers are fellow members in its municipality. A non-member feels its whole municipality, more weakly. Adopters whose perceived ROI falls below their hurdle may stop. Each Monte Carlo run draws every uncertain input from its range.
+
+### 5. Scenarios
+
+The scenario engine plays one plan through one world. It adds 3 things to the adoption model:
+
+- Each adopter's farm meets a fire or doesn't. A treated farm that holds its fire line becomes a story its neighbours hear, which raises their chance of buying. This mirrors the pilot's sugarcane farmer, who became a paying customer and advocate after seeing a fire contained.
+- Perceived risk follows the actual seasons.
+- Shocks change what farmers pay, whether NoFire can sell, or how many customers leave.
+
+Two plans played through the same world with the same seed see identical random draws, so comparisons isolate the effect of the plan.
+
+## Data sources
+
+| Data | Source | Used for |
+| --- | --- | --- |
+| Farm counts and area by municipality, activity and size band | IBGE Censo Agropecuário 2017, table 6754 | One synthetic farm per establishment |
+| Farms with trucks by municipality and size band | Censo Agropecuário 2017, table 6877 | Ground application or drone service |
+| Sugarcane area and production value | IBGE Produção Agrícola Municipal 2024, table 5457 | Which large crop farms grow cane, and cane value at risk |
+| Burned area by land cover, about 30 m | MapBiomas Fogo collection 5.1, 2015 to 2024 | Fire risk by municipality and year |
+| Land cover, about 30 m | MapBiomas collection 11, 2020 | Hectares of cane, pasture and other crops per municipality |
+| Fire hotspots, reference satellite | INPE BDQueimadas, 2015 to 2024 | Cross-check on where fires happen |
+| Municipal boundaries | IBGE | Map points and clipping MapBiomas rasters |
+
+The processed tables in `data/processed/sp/` are committed, so the app runs without downloading anything. `data/processed/sp/build_info.json` records the years and tables used.
+
+## Assumptions and how to change them
+
+Every input lives in [assumptions/nofire_brazil.yaml](assumptions/nofire_brazil.yaml) as a low, base and high value, with a `status` and a note:
+
+| Status | Meaning | Count today |
+| --- | --- | --- |
+| `pilot` | From the Stop the Spread pilot page | 2 |
+| `public` | From a public dataset | 1 |
+| `placeholder` | A Brink estimate waiting for real data | 59 |
+| `interview` | From NoFire's interviews | 0 |
+
+The pilot supplies the containment rate (up to 85%) and the water saving (up to 63%). Fire risk, farm sizes and cane values come from the data files directly. The placeholders that move results most are the product price, the number of treatments per season, the share of fires met by a treatment, the return farmers need before buying, and cooperative membership.
+
+To change an assumption, edit its range in the YAML file, update its `status` and note when it comes from real data, and restart the app. The file also holds the fire scenarios, the adoption settings and the scenario-mode event sizes and chances.
+
+## What it shows so far
+
+With today's placeholders, so these are directions to test, not findings:
+
+- At R$700 per hectare per treatment, the product pays for itself mainly in bad fire years. In a normal year almost no farm clears its hurdle, and in a 2024-type year more than half of large cane farms do.
+- Treating on fire alerts beats treating on a schedule for every segment, because each treatment is more likely to be in place when a fire arrives.
+- Large sugarcane farms in the north-east cane belt are the core market: Pitangueiras, Jaboticabal, Olímpia, Sertãozinho and Morro Agudo. Smallholders rarely see a fire on their land, so the product rarely pays for them, and most lack the truck that makes application cheap.
+- A lower price widens reach more than it grows revenue. At R$300, roughly 3 times as many farms adopt over 10 years, for about the same revenue.
+- Whether a severe season happens matters more than any decision. That points towards pricing that fits a product people value most after a bad year, such as a subscription or a payment linked to insurance.
+- Cooperative and neighbour effects add roughly a third to a half more adopters, which supports selling through cooperatives.
+
+## What's missing and needs doing
+
+In rough order of priority:
+
+1. **Replace the main placeholders with NoFire data.** The most valuable are product cost and price per hectare, treatments per season, how farms decide when to treat, the payback farmers expect, cooperative membership among target farms, and the numbers from the sugarcane farm that contained a fire. That farm would also be the first real check on the model.
+2. **Fill cooperative membership from the census.** Censo Agropecuário table 6846 has membership by municipality and farm size. IBGE's API refused connections while this was built, so it's still a placeholder.
+3. **Have someone with Brazilian policy knowledge size the shocks.** Subsidy, sales suspension, rival, drought and tax relief sizes are illustrative. The tax reform (EC 132/2023 and LC 214/2025), state fire policy (Lei 14.944/2024) and IBAMA rules on retardants all need checking.
+4. **Add NoFire's costs.** The model tracks revenue but not margin, sales cost or cash flow, so it can't yet say whether a plan makes money for NoFire.
+5. **Add pricing models.** Today the only option is a price per hectare per treatment. A season subscription, a payment that only applies in bad years, or a bundle with crop insurance look promising and need modelling.
+6. **Turn-based play.** Let the team change the plan between seasons in step-by-step mode, so the scenario becomes a planning game.
+7. **Validate.** Back-test adoption against a comparable product, such as spraying-drone uptake in Brazil after the 2021 rules, and have an economist review the model.
+8. **Refresh the data.** The census is from 2017 and land cover is fixed at 2020. Use the next census when it's published, and land cover for each year.
+9. **Smaller gaps.** Smallholders use the burn rate for non-cane crops even where cane surrounds them. Only sugarcane gets value at risk from data. Seasons are a year long, though MapBiomas also publishes monthly burned area.
+10. **Access control for the live app.** The repo and a Community Cloud app are public by default. If the assumptions or client details become sensitive, make the repo private and limit who can view the app.
+
+## Reusing it for other Brink twins
+
+Most of the code is generic. What changes per product is the data and the decision rules.
+
+| Layer | Built once | Rebuilt per product |
+| --- | --- | --- |
+| Assumptions file format, overrides, Monte Carlo | All of it | The numbers |
+| Synthetic population from census cells | Sampling, suppressed-area estimates | Data adapters, segment rules |
+| ROI model | Structure | Equations for the product's value |
+| Adoption, scenarios, storylines | All of it | Event types and sizes |
+| App | Tabs, charts, maps, playback | Labels and wording |
+
+A second Brazilian state needs a new entry in `twin/data/codes.py` and a data rebuild. A new country needs new data adapters for its census, crop and fire data.
+
+## Running it yourself
+
+You need Python 3.12 or later.
+
+```bash
+git clone https://github.com/hellobrink/market-twin.git
+cd market-twin
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/streamlit run app.py
+```
+
+Then open http://localhost:8501.
+
+For the tests and the data rebuild, install the development requirements, which add pytest, geopandas and rasterio:
+
+```bash
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pytest
+```
+
+Command-line reports:
+
+```bash
+.venv/bin/python -m twin.report                  # ROI for each segment
+.venv/bin/python -m twin.population_report       # who buys, by fire scenario and strategy
+.venv/bin/python -m twin.adoption_report --price 300 --runs 500
+.venv/bin/python -m twin.calibration             # why the hotspot formula was dropped
+```
+
+To rebuild `data/processed/sp/` from the original sources:
+
+```bash
+.venv/bin/python -m twin.data.build --state SP --crop-year 2024 --hotspot-years 2015-2024 --land-cover-year 2020
+```
+
+The rebuild downloads about 760 MB of MapBiomas rasters into `data/raw/`, which is not committed, and streams the São Paulo part of the land-cover raster.
+
+### Deploying the live app
+
+The app runs on Streamlit Community Cloud straight from this repo:
+
+1. Sign in at [share.streamlit.io](https://share.streamlit.io) with a GitHub account that can see `hellobrink/market-twin`.
+2. Choose **Create app**, then **Deploy a public app from GitHub**.
+3. Set the repository to `hellobrink/market-twin`, the branch to `main` and the main file to `app.py`.
+4. Under **Advanced settings**, choose Python 3.13.
+5. Press **Deploy**. Later pushes to `main` update the app automatically.
+
+## Project layout
+
+| Path | What it holds |
+| --- | --- |
+| `app.py` | The Streamlit app |
+| `twin/scenario.py`, `twin/scenario_view.py` | Scenario engine and the Scenario tab |
+| `twin/adoption.py` | Adoption over time, Monte Carlo |
+| `twin/population.py` | Synthetic farms, segments, fire risk |
+| `twin/roi.py` | Per-farm ROI model |
+| `twin/assumptions.py`, `twin/overrides.py` | Loading assumptions and fixing them for what-ifs |
+| `twin/calibration.py` | The hotspot calibration, kept as a record |
+| `twin/data/` | Downloads and processing for IBGE, INPE and MapBiomas |
+| `twin/*_report.py`, `twin/report.py` | Command-line reports |
+| `assumptions/nofire_brazil.yaml` | Every input, with ranges and sources |
+| `data/processed/sp/` | Processed São Paulo data the app reads |
+| `tests/` | 42 tests, including headless runs of the app |
+
+The original design note for the project is the [Market Digital Twin: Prototype Spec](https://claude.ai/artifact/6hn6GXpxTLsz9Q56Yx15y6).
