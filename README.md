@@ -17,7 +17,7 @@ A prototype "digital twin" of a market, built by Brink to help venture teams tes
 7. [What it shows so far](#what-it-shows-so-far)
 8. [What's missing and needs doing](#whats-missing-and-needs-doing)
 9. [Reusing it for other Brink twins](#reusing-it-for-other-brink-twins)
-10. [Running it yourself](#running-it-yourself)
+10. [For developers: changing and running it](#for-developers-changing-and-running-it)
 11. [Project layout](#project-layout)
 
 ## What it is
@@ -26,7 +26,7 @@ The Stop the Spread pilot found that farmers valued NoFire's gel, especially for
 
 The twin answers those questions with a simulated version of the market. It builds one synthetic farm for each of the 181,072 crop and livestock farms in São Paulo's 2017 agricultural census. Each farm gets a size, a crop, a truck or not, a fire risk based on what has really burned in its municipality, and a value at risk. The model then works out whether NoFire pays for itself on each farm, and simulates which farms buy, season by season, as fires, prices, neighbours and other events play out.
 
-It runs as a web app with 5 tabs. The first, **Scenario**, lets a team set a plan, choose a world of events, and watch the seasons unfold one at a time.
+It runs as a web app with 5 tabs, live at the link above, so there's nothing to install. The first tab, **Scenario**, lets a team set a plan, choose a world of events, and watch the seasons unfold one at a time.
 
 ## How it's designed to be used
 
@@ -174,7 +174,7 @@ Every input lives in [assumptions/nofire_brazil.yaml](assumptions/nofire_brazil.
 
 The pilot supplies the containment rate (up to 85%) and the water saving (up to 63%). Fire risk, farm sizes and cane values come from the data files directly. The placeholders that move results most are the product price, the number of treatments per season, the share of fires met by a treatment, the return farmers need before buying, and cooperative membership.
 
-To change an assumption, edit its range in the YAML file, update its `status` and note when it comes from real data, and restart the app. The file also holds the fire scenarios, the adoption settings and the scenario-mode event sizes and chances.
+Settings moved in the app's sidebar last only for that session. To change an assumption for everyone, edit its range in the YAML file, update its `status` and note when it comes from real data, and push the change to GitHub, which updates the live app within a few minutes. The file also holds the fire scenarios, the adoption settings and the scenario-mode event sizes and chances.
 
 ## What it shows so far
 
@@ -216,9 +216,17 @@ Most of the code is generic. What changes per product is the data and the decisi
 
 A second Brazilian state needs a new entry in `twin/data/codes.py` and a data rebuild. A new country needs new data adapters for its census, crop and fire data.
 
-## Running it yourself
+## For developers: changing and running it
 
-You need Python 3.12 or later.
+To use the twin, open the [live app](https://market-twin-bfvkxgcpeutewnzyr7kjmt.streamlit.app/). This section is for anyone who wants to change the assumptions or the code, run the tests, or rebuild the data.
+
+### How the live app is hosted
+
+The live app runs on Streamlit Community Cloud, deployed from the `main` branch of this repo, with `app.py` as the main file and Python 3.13. Every push to `main` redeploys it within a few minutes, so changing the live app means changing the repo. To change the app's address, visibility or settings, sign in at [share.streamlit.io](https://share.streamlit.io) with the account that deployed it. On the free tier, the app sleeps when nobody has used it for a while and takes about 30 seconds to wake.
+
+### Running a copy on your own computer
+
+A local copy is useful for trying changes before you push them. You need Python 3.12 or later.
 
 ```bash
 git clone https://github.com/hellobrink/market-twin.git
@@ -228,7 +236,9 @@ python3 -m venv .venv
 .venv/bin/streamlit run app.py
 ```
 
-Then open http://localhost:8501.
+Then open http://localhost:8501. `requirements.txt` holds only what the app needs, and the live app installs the same file.
+
+### Tests, reports and data
 
 For the tests and the data rebuild, install the development requirements, which add pytest, geopandas and rasterio:
 
@@ -253,16 +263,6 @@ To rebuild `data/processed/sp/` from the original sources:
 ```
 
 The rebuild downloads about 760 MB of MapBiomas rasters into `data/raw/`, which is not committed, and streams the São Paulo part of the land-cover raster.
-
-### Deploying the live app
-
-The app runs on Streamlit Community Cloud straight from this repo:
-
-1. Sign in at [share.streamlit.io](https://share.streamlit.io) with a GitHub account that can see `hellobrink/market-twin`.
-2. Choose **Create app**, then **Deploy a public app from GitHub**.
-3. Set the repository to `hellobrink/market-twin`, the branch to `main` and the main file to `app.py`.
-4. Under **Advanced settings**, choose Python 3.13.
-5. Press **Deploy**. Later pushes to `main` update the app automatically.
 
 ## Project layout
 
