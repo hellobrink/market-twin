@@ -2,7 +2,7 @@
 
 A prototype "digital twin" of a market, built by Brink to help venture teams test pricing, sales and timing decisions before they spend money in the field. The first case is NoFire, a fire-retardant gel from the Frontier Tech Hub [Stop the Spread](https://www.frontiertechhub.org/pilot-portfolio/stop-the-spread) pilot, sold to farms in the Brazilian state of São Paulo.
 
-**Live app:** [market-twin.streamlit.app](https://market-twin-bfvkxgcpeutewnzyr7kjmt.streamlit.app/). It may take 30 seconds to wake up if nobody has used it for a while.
+**Live app:** https://market-twin-bfvkxgcpeutewnzyr7kjmt.streamlit.app/. It may take 30 seconds to wake up if nobody has used it for a while.
 
 **Status:** working prototype. The farm population, fire history and crop values come from public data. Most numbers about how farmers behave are still placeholders that need replacing with NoFire's own interview and sales data. Treat the outputs as a way to explore assumptions, and don't quote them as forecasts.
 
