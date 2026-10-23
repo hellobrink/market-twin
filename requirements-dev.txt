@@ -1,0 +1,5 @@
+# For running the tests and rebuilding data/processed from IBGE, INPE and MapBiomas.
+-r requirements.txt
+pytest
+geopandas
+rasterio

@@ -1,0 +1,6 @@
+[server]
+# Skips Streamlit's first-run email question and doesn't open a browser tab by itself.
+headless = true
+
+[browser]
+gatherUsageStats = false
